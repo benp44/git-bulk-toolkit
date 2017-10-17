@@ -50,3 +50,7 @@ Run 'git checkout master' on all repositories under development directory:
 
     gbt checkout master 
 
+### Todo
+
+* Add nice way to reset development dir
+* Testing... Way more testing.
