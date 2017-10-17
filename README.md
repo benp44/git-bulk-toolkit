@@ -1,6 +1,6 @@
 # Git Bulk Toolkit (gbt)
 
-A simple tool for managing multiple local git repositories.
+A simple tool for managing multiple local git repositories. Pull requests welcome
 
 ### Screenshot
 
