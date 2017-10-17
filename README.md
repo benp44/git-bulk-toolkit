@@ -1,4 +1,4 @@
-# git-bulk-toolkit
+# Git Bulk Toolkit (gbt)
 
 A simple tool for managing multiple local git repositories.
 
