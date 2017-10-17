@@ -250,22 +250,7 @@ def get_development_dir():
     development_dir = read_first_line(config_file)
 
     if (development_dir is None):
-        print("Git Bulk Toolkit (gbt) usage:")
-        print("\tgbt [fetch] [pull] [status] [checkout <branch_name>]")
-        print("")
-        print("Examples:")
-        print("\tgbt status")
-        print("\tShow status for all repositories under development directory")
-        print("")
-        print("\tgbt fetch status")
-        print("\tRun 'git fetch' on all repositories under development directory, and show status")
-        print("")
-        print("\tgbt pull")
-        print("\tRun 'git pull' on all repositories under development directory")
-        print("")
-        print("\tgbt checkout master")
-        print("\tRun 'git checkout master' on all repositories under development directory")
-        print("")
+        show_help()
 
     while (development_dir is None):
         if (development_dir is None):
@@ -377,6 +362,24 @@ def create_workers():
     return git_workers
 
 
+def show_help():
+    print("Git Bulk Toolkit (gbt) usage:")
+    print("\tgbt [fetch] [pull] [status] [checkout <branch_name>]")
+    print("")
+    print("Examples:")
+    print("\tgbt status")
+    print("\tShow status for all repositories under development directory")
+    print("")
+    print("\tgbt fetch status")
+    print("\tRun 'git fetch' on all repositories under development directory, and show status")
+    print("")
+    print("\tgbt pull")
+    print("\tRun 'git pull' on all repositories under development directory")
+    print("")
+    print("\tgbt checkout master")
+    print("\tRun 'git checkout master' on all repositories under development directory")
+    print("")
+
 # Start program
 
 args = sys.argv[1:]
@@ -385,7 +388,12 @@ fetch = ("fetch" in args)
 pull = ("pull" in args)
 status = ("status" in args)
 checkout = ("checkout" in args)
+help = ("help" in args or "--help" in args)
 branch_name = None
+
+if (help):
+    show_help()
+    exit(0)
 
 if (pull and fetch):
     print("fetch and pull are incompatible")
