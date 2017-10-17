@@ -21,6 +21,10 @@ Clone the repo and alias to the script. For example:
     gbsCheckout() {
         ~/Development/git-bulk-toolkit/gbt checkout $1
     }
+    
+    alias gbp=gbsPull
+    alias gbs=gbsStatus
+    alias gbc=gbsCheckout
 
 ### Usage
 
