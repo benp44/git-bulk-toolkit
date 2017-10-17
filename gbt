@@ -20,9 +20,10 @@ class TerminalStyle:
     GREEN = "\033[92m"
     YELLOW = "\033[93m"
     RED = "\033[91m"
+    DIM = "\033[2m"
     BOLD = "\033[1m"
     UNDERLINE = "\033[4m"
-    ENDC = "\033[0m"
+    CLEAR = "\033[0m"
 
 
 class GitStatusWorker:
@@ -189,7 +190,7 @@ def display_progress(action_text):
             else:
                 incomplete_count += 1
 
-        progress_line = "\r" + action_text + " [" + TerminalStyle.GREEN
+        progress_line = "\r[" + TerminalStyle.GREEN
         for i in range(complete_success_count):
             progress_line += "="
         for i in range(complete_fail_count):
@@ -198,7 +199,7 @@ def display_progress(action_text):
             progress_line += ">"
         for i in range(incomplete_count):
             progress_line += " "
-        progress_line += TerminalStyle.ENDC + "] " + str(complete_success_count + complete_fail_count) + " / " + str(incomplete_count + complete_success_count + complete_fail_count) + " "
+        progress_line += TerminalStyle.CLEAR + "] " + action_text + " (" + str(complete_success_count + complete_fail_count) + " / " + str(incomplete_count + complete_success_count + complete_fail_count) + ") "
 
         sys.stdout.write(progress_line)
 
@@ -240,7 +241,7 @@ def status_all(git_workers):
     for worker in git_workers:
         worker.status()
 
-    display_progress("Getting statuses")
+    display_progress("Getting status")
 
 
 def get_development_dir():
@@ -284,10 +285,6 @@ def get_development_dir():
 
 def print_results(git_workers):
 
-    term_columns, term_lines = shutil.get_terminal_size((80, 20))  # pass fallback
-
-    print("-" * term_columns)
-
     longest_subdirectory_name = 0
     longest_branch_name = 0
     longest_location = 0
@@ -302,42 +299,65 @@ def print_results(git_workers):
         if (len(worker.location()) > longest_location):
             longest_location = len(worker.location())
 
+    horizontal_line()
+
     output_lines = []
     work_to_do = False
 
     for worker in git_workers:
 
-        branch_string = TerminalStyle.WHITE + worker.branch().ljust(longest_branch_name) + TerminalStyle.ENDC
+        branch_string = worker.branch().ljust(longest_branch_name)
 
         if (worker.branch() != "master"):
-            branch_string = TerminalStyle.YELLOW + worker.branch().ljust(longest_branch_name) + TerminalStyle.ENDC
+            branch_string = TerminalStyle.WHITE + worker.branch().ljust(longest_branch_name) + TerminalStyle.CLEAR
 
-        branch_string += " / "
+        location_string = ""
 
         if ("behind" in worker.location().lower()):
-            branch_string += TerminalStyle.YELLOW + worker.location().ljust(longest_location) + TerminalStyle.ENDC
+            if (len(worker.modified_files()) + len(worker.untracked_files()) > 0):
+                location_string += TerminalStyle.RED
+            else:
+                location_string += TerminalStyle.YELLOW
+
+            location_string += worker.location().rjust(longest_location)
             work_to_do = True
+
         elif ("ahead" in worker.location().lower()):
-            branch_string += TerminalStyle.YELLOW + worker.location().ljust(longest_location) + TerminalStyle.ENDC
+            location_string += TerminalStyle.GREEN + worker.location().rjust(longest_location)
             work_to_do = True
+
         else:
-            branch_string += worker.location().ljust(longest_location)
+            location_string += worker.location().rjust(longest_location)
+
+        location_string += TerminalStyle.CLEAR
 
         if (len(worker.modified_files()) + len(worker.untracked_files()) == 0):
-            status_string = TerminalStyle.BLUE + "Nothing to commit" + TerminalStyle.ENDC
+            status_string = TerminalStyle.BLUE + "Nothing to commit" + TerminalStyle.CLEAR
 
         else:
             work_to_do = True
             status_string = ""
-            status_string += TerminalStyle.RED + TerminalStyle.BOLD
+            status_string += TerminalStyle.YELLOW
             status_string += str(len(worker.modified_files()) + len(worker.untracked_files())) + " file(s) modified/untracked"
-            status_string += TerminalStyle.ENDC
+            status_string += TerminalStyle.CLEAR
 
-        print(worker.short_name().ljust(longest_subdirectory_name) + " [ " + branch_string + " ] " + status_string)
+        print(worker.short_name().ljust(longest_subdirectory_name) +
+              TerminalStyle.DIM + " [ " + TerminalStyle.CLEAR +
+              location_string +
+              TerminalStyle.DIM + " on " + TerminalStyle.CLEAR +
+              branch_string +
+              TerminalStyle.DIM + " ] " + TerminalStyle.CLEAR +
+              status_string)
 
-    print("-" * term_columns)
+    horizontal_line()
 
     return work_to_do
+
+
+def horizontal_line():
+
+    term_columns, term_lines = shutil.get_terminal_size((80, 20))
+    print(TerminalStyle.DIM + "─" * term_columns + TerminalStyle.CLEAR)
 
 
 def create_workers():
@@ -391,7 +411,7 @@ if ((fetch or pull or status or checkout) is False):
 # Get the configured development directory, or ask for it
 
 development_dir = get_development_dir()
-print("Working on " + development_dir)
+print("Working on [ " + development_dir + " ]")
 
 # Do the work
 
@@ -412,4 +432,4 @@ else:
         work_to_do = print_results(git_workers)
 
         if (work_to_do is False):
-            print(TerminalStyle.GREEN + "Everything up to date!" + TerminalStyle.ENDC)
+            print(TerminalStyle.GREEN + "Everything up to date!" + TerminalStyle.CLEAR)
