@@ -1,0 +1,415 @@
+#!/usr/bin/python3
+
+# Git bulk toolkit
+
+from argparse import ArgumentParser
+from pathlib import Path
+from subprocess import Popen, PIPE, check_output
+from threading import Thread
+from time import sleep
+import os
+import re
+import shutil
+import sys
+
+
+class TerminalStyle:
+
+    WHITE = "\033[97m"
+    BLUE = "\033[94m"
+    GREEN = "\033[92m"
+    YELLOW = "\033[93m"
+    RED = "\033[91m"
+    BOLD = "\033[1m"
+    UNDERLINE = "\033[4m"
+    ENDC = "\033[0m"
+
+
+class GitStatusWorker:
+
+    def __init__(self, directory, worker_id):
+
+        self._directory = directory
+        self._worker_id = worker_id
+
+        self._work_in_progress = False
+        self._branch = "unknown"
+        self._location = "Up to date"
+        self._modified_files = []
+        self._untracked_files = []
+
+    def status(self):
+
+        if (self._work_in_progress is False):
+            self._work_in_progress = True
+            self._thread = Thread(target=self._thread_method_status)
+            self._thread.start()
+
+    def fetch(self):
+
+        if (self._work_in_progress is False):
+            self._work_in_progress = True
+            self._thread = Thread(target=self._thread_method_fetch)
+            self._thread.start()
+
+    def pull(self):
+
+        if (self._work_in_progress is False):
+            self._work_in_progress = True
+            self._thread = Thread(target=self._thread_method_pull)
+            self._thread.start()
+
+    def checkout(self, branch_name):
+
+        if (self._work_in_progress is False):
+            self._work_in_progress = True
+            self._thread = Thread(target=self._thread_method_checkout, args=(branch_name,))
+            self._thread.start()
+
+    def short_name(self):
+
+        return os.path.basename(os.path.normpath(self._directory))
+
+    def branch(self):
+
+        return self._branch
+
+    def location(self):
+
+        return self._location[0].upper() + self._location[1:]
+
+    def modified_files(self):
+
+        return self._modified_files
+
+    def untracked_files(self):
+
+        return self._untracked_files
+
+    def work_in_progress(self):
+
+        return self._work_in_progress
+
+    def last_error(self):
+
+        return self._last_error
+
+    def join(self):
+
+        self._thread.join()
+
+    def _thread_method_status(self):
+
+        self._modified_files.clear()
+        self._untracked_files.clear()
+
+        output = check_output(["git", "status", "-sb"], cwd=self._directory)
+        output = output.decode("UTF-8")
+        lines = output.split("\n")
+
+        for line in lines:
+            if (line.startswith("##")):
+                line = line.replace("## ", "")
+                if ("..." in line):
+                    self._branch = line[:line.find("...")]
+                else:
+                    self._branch = line
+
+                result = re.search("\[(.*)\]", line)
+                if (result):
+                    self._location = result.group(1)
+
+            if (line.startswith(" M ")):
+                self._modified_files.append(line.replace(" M ", "").strip())
+
+            if (line.startswith("?? ")):
+                self._untracked_files.append(line.replace("?? ", "").strip())
+
+        self._work_in_progress = False
+
+    def _thread_method_fetch(self):
+
+        process = Popen(["git", "fetch"], stdout=PIPE, stderr=PIPE, cwd=self._directory)
+        process.communicate()
+        self._last_error = process.returncode
+
+        self._work_in_progress = False
+
+    def _thread_method_checkout(self, branch_name):
+
+        process = Popen(["git", "checkout", branch_name], stdout=PIPE, stderr=PIPE, cwd=self._directory)
+        process.communicate()
+        self._last_error = process.returncode
+
+        self._work_in_progress = False
+
+    def _thread_method_pull(self):
+
+        process = Popen(["git", "pull"], stdout=PIPE, stderr=PIPE, cwd=self._directory)
+        process.communicate()
+        self._last_error = process.returncode
+
+        self._work_in_progress = False
+
+
+def get_subdirectories(parent_directory):
+    
+    return [os.path.join(parent_directory, name) for name in os.listdir(parent_directory)
+            if os.path.isdir(os.path.join(parent_directory, name))]
+
+
+def read_first_line(filename):
+
+    if (os.path.isfile(filename) is False):
+        return None
+
+    with open(filename, 'r') as f:
+        return f.readline()
+
+
+def write_first_line(filename, line):
+    with open(filename, 'w') as f:
+        return f.writelines([line])
+
+
+def display_progress(action_text):
+
+    while (True):
+
+        complete_success_count = 0
+        complete_fail_count = 0
+        incomplete_count = 0
+
+        for worker in git_workers:
+            if (worker.work_in_progress() is False):
+                if (worker.last_error() == 0):
+                    complete_success_count += 1
+                else:
+                    complete_fail_count += 1
+            else:
+                incomplete_count += 1
+
+        progress_line = "\r" + action_text + " [" + TerminalStyle.GREEN
+        for i in range(complete_success_count):
+            progress_line += "="
+        for i in range(complete_fail_count):
+            progress_line += TerminalStyle.RED + "!" + TerminalStyle.GREEN
+        if (incomplete_count > 0):
+            progress_line += ">"
+        for i in range(incomplete_count):
+            progress_line += " "
+        progress_line += TerminalStyle.ENDC + "] " + str(complete_success_count + complete_fail_count) + " / " + str(incomplete_count + complete_success_count + complete_fail_count) + " "
+
+        sys.stdout.write(progress_line)
+
+        if (incomplete_count is 0):
+            sys.stdout.write("\r\n")
+            sys.stdout.flush()
+            break
+
+    for worker in git_workers:
+        worker.join()
+
+
+def pull_all(git_workers):
+
+    for worker in git_workers:
+        worker.pull()
+
+    display_progress("Pulling")
+
+
+def checkout_all(git_workers, branch_name):
+
+    for worker in git_workers:
+        worker.checkout(branch_name)
+
+    display_progress("Checking out " + branch_name)
+
+
+def fetch_all(git_workers):
+
+    for worker in git_workers:
+        worker.fetch()
+
+    display_progress("Fetching")
+
+
+def status_all(git_workers):
+
+    for worker in git_workers:
+        worker.status()
+
+    display_progress("Getting statuses")
+
+
+def get_development_dir():
+
+    config_file = str(Path.home()) + "/.config/gbt.conf"
+    development_dir = read_first_line(config_file)
+
+    if (development_dir is None):
+        print("Git Bulk Toolkit (gbt) usage:")
+        print("\tgbt [fetch] [pull] [status] [checkout <branch_name>]")
+        print("")
+        print("Examples:")
+        print("\tgbt status")
+        print("\tShow status for all repositories under development directory")
+        print("")
+        print("\tgbt fetch status")
+        print("\tRun 'git fetch' on all repositories under development directory, and show status")
+        print("")
+        print("\tgbt pull")
+        print("\tRun 'git pull' on all repositories under development directory")
+        print("")
+        print("\tgbt checkout master")
+        print("\tRun 'git checkout master' on all repositories under development directory")
+        print("")
+
+    while (development_dir is None):
+        if (development_dir is None):
+            provided_directory = input("Development directory not set.\nProvide the directory under which your git repositories reside: [" + os.getcwd() + "]:")
+            if (provided_directory == ""):
+                development_dir = os.getcwd()
+            else:
+                if (os.path.isdir(provided_directory)):
+                    development_dir = provided_directory
+                else:
+                    print("Directory does not exist")
+
+    write_first_line(config_file, development_dir)
+
+    return development_dir
+
+
+def print_results(git_workers):
+
+    term_columns, term_lines = shutil.get_terminal_size((80, 20))  # pass fallback
+
+    print("-" * term_columns)
+
+    longest_subdirectory_name = 0
+    longest_branch_name = 0
+    longest_location = 0
+
+    for worker in git_workers:
+        if (len(worker.short_name()) > longest_subdirectory_name):
+            longest_subdirectory_name = len(worker.short_name())
+
+        if (len(worker.branch()) > longest_branch_name):
+            longest_branch_name = len(worker.branch())
+
+        if (len(worker.location()) > longest_location):
+            longest_location = len(worker.location())
+
+    output_lines = []
+    work_to_do = False
+
+    for worker in git_workers:
+
+        branch_string = TerminalStyle.WHITE + worker.branch().ljust(longest_branch_name) + TerminalStyle.ENDC
+
+        if (worker.branch() != "master"):
+            branch_string = TerminalStyle.YELLOW + worker.branch().ljust(longest_branch_name) + TerminalStyle.ENDC
+
+        branch_string += " / "
+
+        if ("behind" in worker.location().lower()):
+            branch_string += TerminalStyle.YELLOW + worker.location().ljust(longest_location) + TerminalStyle.ENDC
+            work_to_do = True
+        elif ("ahead" in worker.location().lower()):
+            branch_string += TerminalStyle.YELLOW + worker.location().ljust(longest_location) + TerminalStyle.ENDC
+            work_to_do = True
+        else:
+            branch_string += worker.location().ljust(longest_location)
+
+        if (len(worker.modified_files()) + len(worker.untracked_files()) == 0):
+            status_string = TerminalStyle.BLUE + "Nothing to commit" + TerminalStyle.ENDC
+
+        else:
+            work_to_do = True
+            status_string = ""
+            status_string += TerminalStyle.RED + TerminalStyle.BOLD
+            status_string += str(len(worker.modified_files()) + len(worker.untracked_files())) + " file(s) modified/untracked"
+            status_string += TerminalStyle.ENDC
+
+        print(worker.short_name().ljust(longest_subdirectory_name) + " [ " + branch_string + " ] " + status_string)
+
+    print("-" * term_columns)
+
+    return work_to_do
+
+
+def create_workers():
+
+    subdirectories = get_subdirectories(development_dir)
+    subdirectories.sort()
+
+    git_workers = []
+    worker_id = 1
+
+    for subdirectory in subdirectories:
+        git_dir = os.path.join(subdirectory, ".git/")
+        if (os.path.isdir(git_dir)):
+            git_workers.append(GitStatusWorker(subdirectory, worker_id))
+            worker_id += 1
+
+    return git_workers
+
+
+# Start program
+
+args = sys.argv[1:]
+
+fetch = ("fetch" in args)
+pull = ("pull" in args)
+status = ("status" in args)
+checkout = ("checkout" in args)
+branch_name = None
+
+if (pull and fetch):
+    print("fetch and pull are incompatible")
+    exit(1)
+
+if (checkout and (pull or fetch or status)):
+    print("checkout is not compatible with other commands")
+    exit(1)
+
+if (checkout):
+    if (len(args) == 2):
+        branch_name = args[1]
+    else:
+        print("checkout requires a branch name")
+        exit(1)
+
+# Set the defaults
+
+if ((fetch or pull or status or checkout) is False):
+    fetch = True
+    status = True
+
+# Get the configured development directory, or ask for it
+
+development_dir = get_development_dir()
+print("Working on " + development_dir)
+
+# Do the work
+
+git_workers = create_workers()
+
+if (checkout):
+    checkout_all(git_workers, branch_name)
+
+else:
+    if (pull):
+        pull_all(git_workers)
+
+    elif (fetch):
+        fetch_all(git_workers)
+
+    if (status):
+        status_all(git_workers)
+        work_to_do = print_results(git_workers)
+
+        if (work_to_do is False):
+            print(TerminalStyle.GREEN + "Everything up to date!" + TerminalStyle.ENDC)
