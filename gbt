@@ -119,12 +119,18 @@ class GitStatusWorker:
                 result = re.search("\[(.*)\]", line)
                 if (result):
                     self._location = result.group(1)
+            else:
+                parts = line.split()
 
-            if (line.startswith(" M ")):
-                self._modified_files.append(line.replace(" M ", "").strip())
+                if (len(parts) == 2):
+                    indicator = parts[0]
+                    filename = parts[1]
 
-            if (line.startswith("?? ")):
-                self._untracked_files.append(line.replace("?? ", "").strip())
+                    if ("M" in indicator):
+                        self._modified_files.append(filename)
+
+                    if ("??" in indicator):
+                        self._untracked_files.append(filename)
 
         self._work_in_progress = False
 
@@ -154,9 +160,8 @@ class GitStatusWorker:
 
 
 def get_subdirectories(parent_directory):
-    
-    return [os.path.join(parent_directory, name) for name in os.listdir(parent_directory)
-            if os.path.isdir(os.path.join(parent_directory, name))]
+
+    return [os.path.join(parent_directory, name) for name in os.listdir(parent_directory) if os.path.isdir(os.path.join(parent_directory, name))]
 
 
 def read_first_line(filename):
@@ -379,6 +384,7 @@ def show_help():
     print("\tgbt checkout master")
     print("\tRun 'git checkout master' on all repositories under development directory")
     print("")
+
 
 # Start program
 
