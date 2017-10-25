@@ -39,9 +39,15 @@ class GitStatusWorker:
         self._modified_files = []
         self._untracked_files = []
 
+        self._error_pulling = 0
+        self._error_checking_out = 0
+        self._error_getting_status = 0
+        self._error_fetching = 0
+
     def status(self):
 
         if (self._work_in_progress is False):
+            self._error_getting_status = 0
             self._work_in_progress = True
             self._thread = Thread(target=self._thread_method_status)
             self._thread.start()
@@ -49,6 +55,7 @@ class GitStatusWorker:
     def fetch(self):
 
         if (self._work_in_progress is False):
+            self._error_fetching = 0
             self._work_in_progress = True
             self._thread = Thread(target=self._thread_method_fetch)
             self._thread.start()
@@ -56,6 +63,7 @@ class GitStatusWorker:
     def pull(self):
 
         if (self._work_in_progress is False):
+            self._error_pulling = 0
             self._work_in_progress = True
             self._thread = Thread(target=self._thread_method_pull)
             self._thread.start()
@@ -63,6 +71,7 @@ class GitStatusWorker:
     def checkout(self, branch_name):
 
         if (self._work_in_progress is False):
+            self._error_checking_out = 0
             self._work_in_progress = True
             self._thread = Thread(target=self._thread_method_checkout, args=(branch_name,))
             self._thread.start()
@@ -91,9 +100,25 @@ class GitStatusWorker:
 
         return self._work_in_progress
 
-    def last_error(self):
+    def error_pulling(self):
 
-        return self._last_error
+        return self._error_pulling
+
+    def error_checking_out(self):
+
+        return self._error_checking_out
+
+    def error_getting_status(self):
+
+        return self._error_getting_status
+
+    def error_fetching(self):
+
+        return self._error_fetching
+
+    def error_occurred(self):
+
+        return self.error_pulling() != 0 or self.error_checking_out() != 0 or self.error_getting_status() != 0 or self.error_fetching() != 0
 
     def join(self):
 
@@ -138,24 +163,24 @@ class GitStatusWorker:
 
         process = Popen(["git", "fetch"], stdout=PIPE, stderr=PIPE, cwd=self._directory)
         process.communicate()
-        self._last_error = process.returncode
 
+        self._error_fetching = process.returncode
         self._work_in_progress = False
 
     def _thread_method_checkout(self, branch_name):
 
         process = Popen(["git", "checkout", branch_name], stdout=PIPE, stderr=PIPE, cwd=self._directory)
         process.communicate()
-        self._last_error = process.returncode
 
+        self._error_checking_out = process.returncode
         self._work_in_progress = False
 
     def _thread_method_pull(self):
 
         process = Popen(["git", "pull"], stdout=PIPE, stderr=PIPE, cwd=self._directory)
         process.communicate()
-        self._last_error = process.returncode
 
+        self._error_pulling = process.returncode
         self._work_in_progress = False
 
 
@@ -178,7 +203,7 @@ def write_first_line(filename, line):
         return f.writelines([line])
 
 
-def display_progress(action_text):
+def display_progress(action_text, action_error_method):
 
     while (True):
 
@@ -186,25 +211,22 @@ def display_progress(action_text):
         complete_fail_count = 0
         incomplete_count = 0
 
+        progress_bar = TerminalStyle.GREEN
+
         for worker in git_workers:
             if (worker.work_in_progress() is False):
-                if (worker.last_error() == 0):
+                get_error_method = getattr(worker, action_error_method)
+                if (get_error_method() == 0):
+                    progress_bar += "✔"
                     complete_success_count += 1
                 else:
+                    progress_bar += TerminalStyle.RED + "✕" + TerminalStyle.GREEN
                     complete_fail_count += 1
             else:
+                progress_bar += " "
                 incomplete_count += 1
 
-        progress_line = "\r[" + TerminalStyle.GREEN
-        for i in range(complete_success_count):
-            progress_line += "="
-        for i in range(complete_fail_count):
-            progress_line += TerminalStyle.RED + "!" + TerminalStyle.GREEN
-        if (incomplete_count > 0):
-            progress_line += ">"
-        for i in range(incomplete_count):
-            progress_line += " "
-        progress_line += TerminalStyle.CLEAR + "] " + action_text + " (" + str(complete_success_count + complete_fail_count) + " / " + str(incomplete_count + complete_success_count + complete_fail_count) + ") "
+        progress_line = "\r[" + progress_bar.ljust(len(git_workers)) + TerminalStyle.CLEAR + "] " + action_text + " (" + str(complete_success_count + complete_fail_count) + " / " + str(incomplete_count + complete_success_count + complete_fail_count) + ") "
 
         sys.stdout.write(progress_line)
 
@@ -222,7 +244,7 @@ def pull_all(git_workers):
     for worker in git_workers:
         worker.pull()
 
-    display_progress("Pulling")
+    display_progress("Pulling", "error_pulling")
 
 
 def checkout_all(git_workers, branch_name):
@@ -230,7 +252,7 @@ def checkout_all(git_workers, branch_name):
     for worker in git_workers:
         worker.checkout(branch_name)
 
-    display_progress("Checking out " + branch_name)
+    display_progress("Checking out " + branch_name, "error_checking_out")
 
 
 def fetch_all(git_workers):
@@ -238,7 +260,7 @@ def fetch_all(git_workers):
     for worker in git_workers:
         worker.fetch()
 
-    display_progress("Fetching")
+    display_progress("Fetching", "error_fetching")
 
 
 def status_all(git_workers):
@@ -246,7 +268,7 @@ def status_all(git_workers):
     for worker in git_workers:
         worker.status()
 
-    display_progress("Getting status")
+    display_progress("Getting status", "error_getting_status")
 
 
 def get_development_dir():
@@ -296,48 +318,67 @@ def print_results(git_workers):
 
     for worker in git_workers:
 
-        branch_string = worker.branch().ljust(longest_branch_name)
+        if (worker.error_occurred()):
+            status_string = TerminalStyle.RED + worker.short_name().ljust(longest_subdirectory_name + longest_branch_name + longest_location + 10)
+            status_string += "Error(s): "
 
-        if (worker.branch() != "master"):
-            branch_string = TerminalStyle.WHITE + worker.branch().ljust(longest_branch_name) + TerminalStyle.CLEAR
+            if (worker.error_fetching() != 0):
+                status_string += "Fetching (" + str(worker.error_fetching()) + ")"
 
-        location_string = ""
+            if (worker.error_pulling() != 0):
+                status_string += "Pulling (" + str(worker.error_pulling()) + ")"
 
-        if ("behind" in worker.location().lower()):
-            if (len(worker.modified_files()) + len(worker.untracked_files()) > 0):
-                location_string += TerminalStyle.RED
-            else:
-                location_string += TerminalStyle.YELLOW
+            if (worker.error_checking_out() != 0):
+                status_string += "Checking out branch (" + str(worker.error_checking_out()) + ")"
 
-            location_string += worker.location().rjust(longest_location)
-            work_to_do = True
-
-        elif ("ahead" in worker.location().lower()):
-            location_string += TerminalStyle.GREEN + worker.location().rjust(longest_location)
-            work_to_do = True
-
-        else:
-            location_string += worker.location().rjust(longest_location)
-
-        location_string += TerminalStyle.CLEAR
-
-        if (len(worker.modified_files()) + len(worker.untracked_files()) == 0):
-            status_string = TerminalStyle.BLUE + "Nothing to commit" + TerminalStyle.CLEAR
-
-        else:
-            work_to_do = True
-            status_string = ""
-            status_string += TerminalStyle.YELLOW
-            status_string += str(len(worker.modified_files()) + len(worker.untracked_files())) + " file(s) modified/untracked"
             status_string += TerminalStyle.CLEAR
 
-        print(worker.short_name().ljust(longest_subdirectory_name) +
-              TerminalStyle.DIM + " [ " + TerminalStyle.CLEAR +
-              location_string +
-              TerminalStyle.DIM + " on " + TerminalStyle.CLEAR +
-              branch_string +
-              TerminalStyle.DIM + " ] " + TerminalStyle.CLEAR +
-              status_string)
+            print(status_string)
+
+        else:
+            branch_string = worker.branch().ljust(longest_branch_name)
+
+            if (worker.branch() != "master"):
+                branch_string = TerminalStyle.WHITE + worker.branch().ljust(longest_branch_name) + TerminalStyle.CLEAR
+
+            location_string = ""
+
+            if ("behind" in worker.location().lower()):
+                if (len(worker.modified_files()) + len(worker.untracked_files()) > 0):
+                    location_string += TerminalStyle.RED
+                else:
+                    location_string += TerminalStyle.YELLOW
+
+                location_string += worker.location().rjust(longest_location)
+                work_to_do = True
+
+            elif ("ahead" in worker.location().lower()):
+                location_string += TerminalStyle.GREEN + worker.location().rjust(longest_location)
+                work_to_do = True
+
+            else:
+                location_string += worker.location().rjust(longest_location)
+
+            location_string += TerminalStyle.CLEAR
+
+            status_string = ""
+
+            if (len(worker.modified_files()) + len(worker.untracked_files()) == 0):
+                status_string += TerminalStyle.BLUE + "Nothing to commit" + TerminalStyle.CLEAR
+
+            else:
+                work_to_do = True
+                status_string += TerminalStyle.YELLOW
+                status_string += str(len(worker.modified_files()) + len(worker.untracked_files())) + " file(s) modified/untracked"
+                status_string += TerminalStyle.CLEAR
+
+            print(worker.short_name().ljust(longest_subdirectory_name) +
+                  TerminalStyle.DIM + " [ " + TerminalStyle.CLEAR +
+                  location_string +
+                  TerminalStyle.DIM + " on " + TerminalStyle.CLEAR +
+                  branch_string +
+                  TerminalStyle.DIM + " ] " + TerminalStyle.CLEAR +
+                  status_string)
 
     horizontal_line()
 
