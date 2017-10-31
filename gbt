@@ -34,6 +34,7 @@ class GitStatusWorker:
         self._worker_id = worker_id
 
         self._work_in_progress = False
+        self._repo_id = ""
         self._branch = "unknown"
         self._location = "Up to date"
         self._modified_files = []
@@ -84,6 +85,10 @@ class GitStatusWorker:
 
         return self._branch
 
+    def is_gbt_repo(self):
+
+        return self._repo_id == "a5eab786a76c18fb765ae60742f970da2f5408fc"
+
     def location(self):
 
         return self._location[0].upper() + self._location[1:]
@@ -128,6 +133,10 @@ class GitStatusWorker:
 
         self._modified_files.clear()
         self._untracked_files.clear()
+
+        output = check_output(["git", "rev-list", "HEAD"], cwd=self._directory)
+        output = output.decode("UTF-8")
+        self._repo_id = output.split("\n")[-2]
 
         output = check_output(["git", "status", "-sb"], cwd=self._directory)
         output = output.decode("UTF-8")
@@ -315,6 +324,7 @@ def print_results(git_workers):
 
     output_lines = []
     work_to_do = False
+    gbt_has_update = False
 
     for worker in git_workers:
 
@@ -336,14 +346,14 @@ def print_results(git_workers):
             print(status_string)
 
         else:
-            branch_string = worker.branch().ljust(longest_branch_name)
-
-            if (worker.branch() != "master"):
-                branch_string = TerminalStyle.WHITE + worker.branch().ljust(longest_branch_name) + TerminalStyle.CLEAR
+            name_string = worker.short_name().ljust(longest_subdirectory_name)
 
             location_string = ""
 
             if ("behind" in worker.location().lower()):
+
+                gbt_has_update = worker.is_gbt_repo()
+
                 if (len(worker.modified_files()) + len(worker.untracked_files()) > 0):
                     location_string += TerminalStyle.RED
                 else:
@@ -361,6 +371,11 @@ def print_results(git_workers):
 
             location_string += TerminalStyle.CLEAR
 
+            branch_string = worker.branch().ljust(longest_branch_name)
+
+            if (worker.branch() != "master"):
+                branch_string = TerminalStyle.WHITE + worker.branch().ljust(longest_branch_name) + TerminalStyle.CLEAR
+
             status_string = ""
 
             if (len(worker.modified_files()) + len(worker.untracked_files()) == 0):
@@ -372,7 +387,7 @@ def print_results(git_workers):
                 status_string += str(len(worker.modified_files()) + len(worker.untracked_files())) + " file(s) modified/untracked"
                 status_string += TerminalStyle.CLEAR
 
-            print(worker.short_name().ljust(longest_subdirectory_name) +
+            print(name_string +
                   TerminalStyle.DIM + " [ " + TerminalStyle.CLEAR +
                   location_string +
                   TerminalStyle.DIM + " on " + TerminalStyle.CLEAR +
@@ -382,7 +397,7 @@ def print_results(git_workers):
 
     horizontal_line()
 
-    return work_to_do
+    return work_to_do, gbt_has_update
 
 
 def horizontal_line():
@@ -484,7 +499,10 @@ else:
 
     if (status):
         status_all(git_workers)
-        work_to_do = print_results(git_workers)
+        work_to_do, gbt_has_update = print_results(git_workers)
 
         if (work_to_do is False):
-            print(TerminalStyle.GREEN + "Everything up to date!" + TerminalStyle.CLEAR)
+            print(TerminalStyle.GREEN + "Everything up to date" + TerminalStyle.CLEAR)
+
+        if (gbt_has_update is True):
+            print(TerminalStyle.GREEN + "Update available for gbt" + TerminalStyle.CLEAR)
