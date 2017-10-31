@@ -52,6 +52,7 @@ Run 'git checkout master' on all repositories under development directory:
 
 ### Todo
 
-* Add nice way to reset development dir
-* Testing... Way more testing.
+* Add user-friendly way to reset development dir
+* Add support for nested repos/submodules
 * Jenkins build status?
+* Testing... Way more testing.
