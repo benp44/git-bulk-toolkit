@@ -54,3 +54,4 @@ Run 'git checkout master' on all repositories under development directory:
 
 * Add nice way to reset development dir
 * Testing... Way more testing.
+* Jenkins build status?
