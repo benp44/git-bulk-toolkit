@@ -26,6 +26,8 @@ Clone the repo and alias to the script. For example:
     alias gbs=gbsStatus
     alias gbc=gbsCheckout
 
+If the git-bulk-toolkit repository is among those in the development directory, then the tool will let you know when it has an update.
+
 ### Usage
 
     gbt [fetch] [pull] [status] [checkout <branch_name>]
