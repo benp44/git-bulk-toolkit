@@ -11,6 +11,7 @@ import os
 import re
 import shutil
 import sys
+import datetime
 
 
 class TerminalStyle:
@@ -24,6 +25,31 @@ class TerminalStyle:
     BOLD = "\033[1m"
     UNDERLINE = "\033[4m"
     CLEAR = "\033[0m"
+
+class LogEntry:
+
+    def __init__(self, repo, timestamp, relative_date, author, message):
+
+        self._repo = repo
+        self._timestamp = timestamp
+        self._relative_date = relative_date
+        self._author = author
+        self._message = message
+
+    def repo(self):
+        return self._repo
+
+    def timestamp(self):
+        return self._timestamp
+
+    def relative_date(self):
+        return self._relative_date
+
+    def author(self):
+        return self._author
+
+    def message(self):
+        return self._message
 
 
 class GitStatusWorker:
@@ -39,11 +65,13 @@ class GitStatusWorker:
         self._location = "Up to date"
         self._modified_files = []
         self._untracked_files = []
+        self._log_entries = []
 
         self._error_pulling = 0
         self._error_checking_out = 0
         self._error_getting_status = 0
         self._error_fetching = 0
+        self._error_getting_log = 0
 
     def status(self):
 
@@ -77,6 +105,14 @@ class GitStatusWorker:
             self._thread = Thread(target=self._thread_method_checkout, args=(branch_name,))
             self._thread.start()
 
+    def log(self, days_to_log):
+
+        if (self._work_in_progress is False):
+            self._error_getting_log = 0
+            self._work_in_progress = True
+            self._thread = Thread(target=self._thread_method_log, args=(days_to_log,))
+            self._thread.start()
+
     def short_name(self):
 
         return os.path.basename(os.path.normpath(self._directory))
@@ -101,6 +137,10 @@ class GitStatusWorker:
 
         return self._untracked_files
 
+    def log_entries(self):
+
+        return self._log_entries
+
     def work_in_progress(self):
 
         return self._work_in_progress
@@ -121,9 +161,13 @@ class GitStatusWorker:
 
         return self._error_fetching
 
+    def error_getting_log(self):
+
+        return self._error_getting_log
+
     def error_occurred(self):
 
-        return self.error_pulling() != 0 or self.error_checking_out() != 0 or self.error_getting_status() != 0 or self.error_fetching() != 0
+        return self.error_pulling() != 0 or self.error_checking_out() != 0 or self.error_getting_status() != 0 or self.error_fetching() != 0 or self.error_getting_log() != 0
 
     def join(self):
 
@@ -167,6 +211,27 @@ class GitStatusWorker:
                         self._untracked_files.append(filename)
 
         self._work_in_progress = False
+
+    def _thread_method_log(self, days_to_log):
+
+        delimiter = "~|~"
+
+        since_date = (datetime.date.today() - datetime.timedelta(days=days_to_log)).strftime('%Y-%m-%d')
+        output = check_output(["git", "log", "--pretty=format:%ct" + delimiter + "%cr" + delimiter + "%cn" + delimiter + "%s", "--since=" + since_date], cwd=self._directory)
+        output = output.decode("UTF-8")
+        lines = output.split("\n")
+
+        for line in lines:
+            if (len(line) > 0):
+                parts = line.split(delimiter)
+
+                if (len(parts) == 4):
+                    entry = LogEntry(self.short_name(), parts[0], parts[1], parts[2], parts[3])
+                    self._log_entries.append(entry)
+                else:
+                    self._error_getting_log += 1
+
+        self._work_in_progress = False        
 
     def _thread_method_fetch(self):
 
@@ -264,6 +329,14 @@ def checkout_all(git_workers, branch_name):
     display_progress("Checking out " + branch_name, "error_checking_out")
 
 
+def log_all(git_workers, days_to_log):
+
+    for worker in git_workers:
+        worker.log(days_to_log)
+
+    display_progress("Getting logs for last " + str(days_to_log) + " day(s)", "error_getting_log")
+
+
 def fetch_all(git_workers):
 
     for worker in git_workers:
@@ -304,7 +377,7 @@ def get_development_dir():
     return development_dir
 
 
-def print_results(git_workers):
+def print_statuses(git_workers):
 
     longest_subdirectory_name = 0
     longest_branch_name = 0
@@ -400,6 +473,44 @@ def print_results(git_workers):
     return work_to_do, gbt_has_update
 
 
+def print_logs(git_workers):
+
+    all_log_entries = []
+
+    for worker in git_workers:
+        all_log_entries.extend(worker.log_entries())
+
+    all_log_entries.sort(key=lambda x: x.timestamp(), reverse=True)
+
+    longest_date = 0
+    longest_repo = 0
+    longest_author = 0
+
+    for entry in all_log_entries:
+        if (len(entry.relative_date()) > longest_date):
+            longest_date = len(entry.relative_date())
+
+        if (len(entry.repo()) > longest_repo):
+            longest_repo = len(entry.repo())
+
+        if (len(entry.author()) > longest_author):
+            longest_author = len(entry.author())
+
+    term_columns, term_lines = shutil.get_terminal_size((80, 20))
+
+    for entry in all_log_entries:
+        repo_string = entry.repo().ljust(longest_repo)
+        date_string = entry.relative_date().ljust(longest_date)
+        author_string = entry.author().ljust(longest_author)
+
+        meta_data_string = repo_string + TerminalStyle.DIM + " [ " + TerminalStyle.CLEAR + author_string + " " + date_string + TerminalStyle.DIM + " ] " + TerminalStyle.CLEAR
+        message = entry.message()
+        space_remaining = term_columns - len(meta_data_string)
+        message_string = (message[:space_remaining - 3] + '...') if len(message) > space_remaining else message
+
+        print(meta_data_string + TerminalStyle.BLUE + message_string + TerminalStyle.CLEAR)
+
+
 def horizontal_line():
 
     term_columns, term_lines = shutil.get_terminal_size((80, 20))
@@ -424,21 +535,28 @@ def create_workers():
 
 
 def show_help():
-    print("Git Bulk Toolkit (gbt) usage:")
-    print("\tgbt [fetch] [pull] [status] [checkout <branch_name>]")
+    print(TerminalStyle.YELLOW + "Git Bulk Toolkit (gbt) by Ben Pring" + TerminalStyle.CLEAR)
     print("")
-    print("Examples:")
-    print("\tgbt status")
-    print("\tShow status for all repositories under development directory")
+    print("gbt status")
+    print(" - Show status for all repositories under development directory")
     print("")
-    print("\tgbt fetch status")
-    print("\tRun 'git fetch' on all repositories under development directory, and show status")
+    print("gbt fetch")
+    print(" - Run 'git fetch' on all repositories under development directory")
     print("")
-    print("\tgbt pull")
-    print("\tRun 'git pull' on all repositories under development directory")
+    print("gbt pull")
+    print(" - Run 'git pull' on all repositories under development directory")
     print("")
-    print("\tgbt checkout master")
-    print("\tRun 'git checkout master' on all repositories under development directory")
+    print("gbt fetch status")
+    print(" - Run 'git fetch' on all repositories under development directory, and show status")
+    print("")
+    print("gbt pull status")
+    print(" - Run 'git pull' on all repositories under development directory, and show status")
+    print("")
+    print("gbt checkout <branch_name>")
+    print(" - Run 'git checkout <branch_name>' on all repositories under development directory")
+    print("")
+    print("gbt log [<days_to_log>]")
+    print(" - Run 'git log' on all repositories under development directory, and display <days_to_log> worth of commits (default 7)")
     print("")
 
 
@@ -447,11 +565,14 @@ def show_help():
 args = sys.argv[1:]
 
 fetch = ("fetch" in args)
+log = ("log" in args)
 pull = ("pull" in args)
 status = ("status" in args)
 checkout = ("checkout" in args)
 help = ("help" in args or "--help" in args)
+
 branch_name = None
+days_to_log = 7
 
 if (help):
     show_help()
@@ -461,9 +582,15 @@ if (pull and fetch):
     print("fetch and pull are incompatible")
     exit(1)
 
-if (checkout and (pull or fetch or status)):
+if (checkout and (pull or fetch or status or log)):
     print("checkout is not compatible with other commands")
     exit(1)
+
+if (log and (pull or fetch or status or checkout)):
+    print("log is not compatible with other commands")
+    exit(1)
+
+# Check that there's a branch param for checkout
 
 if (checkout):
     if (len(args) == 2):
@@ -472,9 +599,15 @@ if (checkout):
         print("checkout requires a branch name")
         exit(1)
 
+# Get the optional days to log param
+
+if (log):
+    if (len(args) == 2):
+        days_to_log = int(args[1])
+
 # Set the defaults
 
-if ((fetch or pull or status or checkout) is False):
+if ((fetch or pull or status or checkout or log) is False):
     fetch = True
     status = True
 
@@ -490,6 +623,10 @@ git_workers = create_workers()
 if (checkout):
     checkout_all(git_workers, branch_name)
 
+elif (log):
+    log_all(git_workers, days_to_log)
+    print_logs(git_workers)
+
 else:
     if (pull):
         pull_all(git_workers)
@@ -499,7 +636,7 @@ else:
 
     if (status):
         status_all(git_workers)
-        work_to_do, gbt_has_update = print_results(git_workers)
+        work_to_do, gbt_has_update = print_statuses(git_workers)
 
         if (work_to_do is False):
             print(TerminalStyle.GREEN + "Everything up to date" + TerminalStyle.CLEAR)
