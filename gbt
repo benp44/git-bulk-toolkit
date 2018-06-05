@@ -379,6 +379,8 @@ def get_development_dir():
 
 def print_statuses(git_workers):
 
+    horizontal_line()
+
     longest_subdirectory_name = 0
     longest_branch_name = 0
     longest_location = 0
@@ -392,8 +394,6 @@ def print_statuses(git_workers):
 
         if (len(worker.location()) > longest_location):
             longest_location = len(worker.location())
-
-    horizontal_line()
 
     output_lines = []
     work_to_do = False
@@ -475,6 +475,8 @@ def print_statuses(git_workers):
 
 def print_logs(git_workers):
 
+    horizontal_line()
+
     all_log_entries = []
 
     for worker in git_workers:
@@ -510,6 +512,7 @@ def print_logs(git_workers):
 
         print(meta_data_string + TerminalStyle.BLUE + message_string + TerminalStyle.CLEAR)
 
+    horizontal_line()
 
 def horizontal_line():
 
