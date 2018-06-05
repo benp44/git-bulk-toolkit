@@ -8,29 +8,32 @@ A simple tool for managing and viewing the status of multiple local git reposito
 
 ### Installation
 
-Clone the repo and alias to the script. For example:
+Clone the repo and alias to the script in .bashrc, .zshrc, etc. For example:
 
-    gbsStatus() {
+    gbtStatus() {
          ~/Development/git-bulk-toolkit/gbt fetch status
     }
 
-    gbsPull() {
+    gbtPull() {
         ~/Development/git-bulk-toolkit/gbt pull status
     }
 
-    gbsCheckout() {
+    gbtCheckout() {
         ~/Development/git-bulk-toolkit/gbt checkout $1
     }
     
-    alias gbp=gbsPull
-    alias gbs=gbsStatus
-    alias gbc=gbsCheckout
+    gbtLog() {
+        ~/Development/git-bulk-toolkit/gbt log $1
+    }
+    
+    alias gbp=gbtPull
+    alias gbs=gbtStatus
+    alias gbc=gbtCheckout
+    alias gbl=gbtLog
 
 If the git-bulk-toolkit repository is among those in the development directory, then the tool will let you know when it has an update.
 
 ### Usage
-
-    gbt [fetch] [pull] [status] [checkout <branch_name>]
 
 When first run, gbt will ask you to select a development directory. It then operates on all git directories directly under this, so can be run from anywhere.
 
@@ -51,10 +54,13 @@ Run 'git pull' on all repositories under development directory:
 Run 'git checkout master' on all repositories under development directory:
 
     gbt checkout master 
+    
+Run 'git log' on all repositories under development directory, limited to the last `n` days, and merge the results:
+
+    gbt log n
 
 ### Todo
 
 * Add user-friendly way to reset development dir
 * Add support for nested repos/submodules
-* Jenkins build status?
-* Testing... Way more testing.
+* Testing... way more testing for edge scenarios - did I mention PR's welcome!?
