@@ -9,27 +9,11 @@ A simple tool for managing and viewing the status of multiple local git reposito
 ### Installation
 
 Clone the repo and alias to the script in .bashrc, .zshrc, etc. For example:
-
-    gbtStatus() {
-         ~/Development/git-bulk-toolkit/gbt fetch status
-    }
-
-    gbtPull() {
-        ~/Development/git-bulk-toolkit/gbt pull status
-    }
-
-    gbtCheckout() {
-        ~/Development/git-bulk-toolkit/gbt checkout $1
-    }
-    
-    gbtLog() {
-        ~/Development/git-bulk-toolkit/gbt log $1
-    }
-    
-    alias gbp=gbtPull
-    alias gbs=gbtStatus
-    alias gbc=gbtCheckout
-    alias gbl=gbtLog
+  
+    alias gbp='~/Development/git-bulk-toolkit/gbt fetch status'
+    alias gbs='~/Development/git-bulk-toolkit/gbt pull status'
+    alias gbc='~/Development/git-bulk-toolkit/gbt checkout'
+    alias gbl='~/Development/git-bulk-toolkit/gbt log'
 
 If the git-bulk-toolkit repository is among those in the development directory, then the tool will let you know when it has an update.
 
