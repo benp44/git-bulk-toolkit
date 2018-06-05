@@ -10,8 +10,8 @@ A simple tool for managing and viewing the status of multiple local git reposito
 
 Clone the repo and alias to the script in .bashrc, .zshrc, etc. For example:
   
-    alias gbp='~/Development/git-bulk-toolkit/gbt fetch status'
-    alias gbs='~/Development/git-bulk-toolkit/gbt pull status'
+    alias gbs='~/Development/git-bulk-toolkit/gbt fetch status'
+    alias gbp='~/Development/git-bulk-toolkit/gbt pull status'
     alias gbc='~/Development/git-bulk-toolkit/gbt checkout'
     alias gbl='~/Development/git-bulk-toolkit/gbt log'
 
