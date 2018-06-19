@@ -251,7 +251,7 @@ class GitStatusWorker:
 
     def _thread_method_pull(self):
 
-        process = Popen(["git", "pull"], stdout=PIPE, stderr=PIPE, cwd=self._directory)
+        process = Popen(["git", "pull", "--recurse-submodules"], stdout=PIPE, stderr=PIPE, cwd=self._directory)
         process.communicate()
 
         self._error_pulling = process.returncode
@@ -353,9 +353,14 @@ def status_all(git_workers):
     display_progress("Getting status", "error_getting_status")
 
 
+def get_config_file_path():
+
+    return str(Path.home()) + "/.config/gbt.conf"
+
+
 def get_development_dir():
 
-    config_file = str(Path.home()) + "/.config/gbt.conf"
+    config_file = get_config_file_path()
     development_dir = read_first_line(config_file)
 
     if (development_dir is None):
@@ -547,7 +552,7 @@ def show_help():
     print(" - Run 'git fetch' on all repositories under development directory")
     print("")
     print("gbt pull")
-    print(" - Run 'git pull' on all repositories under development directory")
+    print(" - Run 'git pull --recurse-submodules' on all repositories under development directory")
     print("")
     print("gbt fetch status")
     print(" - Run 'git fetch' on all repositories under development directory, and show status")
