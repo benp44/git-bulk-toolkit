@@ -54,10 +54,11 @@ class LogEntry:
 
 class GitStatusWorker:
 
-    def __init__(self, directory, worker_id):
+    def __init__(self, directory, worker_id, is_submodule):
 
         self._directory = directory
         self._worker_id = worker_id
+        self._is_submodule = is_submodule
 
         self._work_in_progress = False
         self._repo_id = ""
@@ -113,9 +114,24 @@ class GitStatusWorker:
             self._thread = Thread(target=self._thread_method_log, args=(days_to_log,))
             self._thread.start()
 
+    def directory(self):
+
+        return self._directory
+
+    def is_submodule(self):
+
+        return self._is_submodule
+
     def short_name(self):
 
         return os.path.basename(os.path.normpath(self._directory))
+
+    def display_name(self):
+
+        if (self._is_submodule):
+            return " └ " + os.path.basename(os.path.normpath(self._directory))
+        else:
+            return os.path.basename(os.path.normpath(self._directory))
 
     def branch(self):
 
@@ -187,6 +203,64 @@ class GitStatusWorker:
 
         output = check_output(["git", "status", "-sb"], cwd=self._directory)
         output = output.decode("UTF-8")
+
+        self._process_status_output(output)
+
+        self._work_in_progress = False
+
+    def _thread_method_log(self, days_to_log):
+
+        try:
+            delimiter = "~|~"
+            since_date = (datetime.date.today() - datetime.timedelta(days=days_to_log)).strftime('%Y-%m-%d')
+            output = check_output(["git", "log", "--pretty=format:%ct" + delimiter + "%cr" + delimiter + "%cn" + delimiter + "%s", "--since=" + since_date], cwd=self._directory)
+            output = output.decode("UTF-8")
+            lines = output.split("\n")
+
+            for line in lines:
+                if (len(line) > 0):
+                    parts = line.split(delimiter)
+
+                    if (len(parts) == 4):
+                        entry = LogEntry(self.short_name(), parts[0], parts[1], parts[2], parts[3])
+                        self._log_entries.append(entry)
+                    else:
+                        self._error_getting_log += 1
+
+        except:
+            self._error_getting_log += 1
+
+        self._work_in_progress = False        
+
+    def _thread_method_fetch(self):
+
+        if (self._is_submodule == False):
+            process = Popen(["git", "fetch"], stdout=PIPE, stderr=PIPE, cwd=self._directory)
+            process.communicate()
+            self._error_fetching = process.returncode
+
+        self._work_in_progress = False
+
+    def _thread_method_checkout(self, branch_name):
+
+        if (self._is_submodule == False):
+            process = Popen(["git", "checkout", branch_name], stdout=PIPE, stderr=PIPE, cwd=self._directory)
+            process.communicate()
+            self._error_checking_out = process.returncode
+
+        self._work_in_progress = False
+
+    def _thread_method_pull(self):
+
+        if (self._is_submodule == False):
+            process = Popen(["git", "pull", "--recurse-submodules"], stdout=PIPE, stderr=PIPE, cwd=self._directory)
+            process.communicate()
+            self._error_pulling = process.returncode
+
+        self._work_in_progress = False
+
+    def _process_status_output(self, output):
+
         lines = output.split("\n")
 
         for line in lines:
@@ -200,6 +274,11 @@ class GitStatusWorker:
                 result = re.search("\[(.*)\]", line)
                 if (result):
                     self._location = result.group(1)
+
+                if "No commits yet on" in self._branch:
+                    self._branch = self._branch.split()[-1]
+                    self._location = "Empty"
+
             else:
                 parts = line.split()
 
@@ -213,58 +292,28 @@ class GitStatusWorker:
                     if ("??" in indicator):
                         self._untracked_files.append(filename)
 
-        self._work_in_progress = False
 
-    def _thread_method_log(self, days_to_log):
+def get_repositories(parent_directory):
 
-        delimiter = "~|~"
+    repositories = []
 
-        since_date = (datetime.date.today() - datetime.timedelta(days=days_to_log)).strftime('%Y-%m-%d')
-        output = check_output(["git", "log", "--pretty=format:%ct" + delimiter + "%cr" + delimiter + "%cn" + delimiter + "%s", "--since=" + since_date], cwd=self._directory)
-        output = output.decode("UTF-8")
-        lines = output.split("\n")
+    for path, subdirs, files in os.walk(parent_directory):
+        for subdir in subdirs:
+            if (subdir == ".git"):
+                repositories.append(path)
 
-        for line in lines:
-            if (len(line) > 0):
-                parts = line.split(delimiter)
+    return repositories
 
-                if (len(parts) == 4):
-                    entry = LogEntry(self.short_name(), parts[0], parts[1], parts[2], parts[3])
-                    self._log_entries.append(entry)
-                else:
-                    self._error_getting_log += 1
+def get_submodules(parent_directory):
 
-        self._work_in_progress = False        
+    submodules = []
 
-    def _thread_method_fetch(self):
-
-        process = Popen(["git", "fetch"], stdout=PIPE, stderr=PIPE, cwd=self._directory)
-        process.communicate()
-
-        self._error_fetching = process.returncode
-        self._work_in_progress = False
-
-    def _thread_method_checkout(self, branch_name):
-
-        process = Popen(["git", "checkout", branch_name], stdout=PIPE, stderr=PIPE, cwd=self._directory)
-        process.communicate()
-
-        self._error_checking_out = process.returncode
-        self._work_in_progress = False
-
-    def _thread_method_pull(self):
-
-        process = Popen(["git", "pull", "--recurse-submodules"], stdout=PIPE, stderr=PIPE, cwd=self._directory)
-        process.communicate()
-
-        self._error_pulling = process.returncode
-        self._work_in_progress = False
-
-
-def get_subdirectories(parent_directory):
-
-    return [os.path.join(parent_directory, name) for name in os.listdir(parent_directory) if os.path.isdir(os.path.join(parent_directory, name))]
-
+    for path, subdirs, files in os.walk(parent_directory):
+        for file in files:
+            if (file == ".git"):
+                submodules.append(path)
+    
+    return submodules
 
 def read_first_line(filename):
 
@@ -394,8 +443,8 @@ def print_statuses(git_workers):
     longest_location = 0
 
     for worker in git_workers:
-        if (len(worker.short_name()) > longest_subdirectory_name):
-            longest_subdirectory_name = len(worker.short_name())
+        if (len(worker.display_name()) > longest_subdirectory_name):
+            longest_subdirectory_name = len(worker.display_name())
 
         if (len(worker.branch()) > longest_branch_name):
             longest_branch_name = len(worker.branch())
@@ -410,7 +459,7 @@ def print_statuses(git_workers):
     for worker in git_workers:
 
         if (worker.error_occurred()):
-            status_string = TerminalStyle.RED + worker.short_name().ljust(longest_subdirectory_name + longest_branch_name + longest_location + 10)
+            status_string = TerminalStyle.RED + worker.display_name().ljust(longest_subdirectory_name + longest_branch_name + longest_location + 10)
             status_string += "Error(s): "
 
             if (worker.error_fetching() != 0):
@@ -427,7 +476,9 @@ def print_statuses(git_workers):
             print(status_string)
 
         else:
-            name_string = worker.short_name().ljust(longest_subdirectory_name)
+            name_string = TerminalStyle.DIM if worker.is_submodule() else ""
+            name_string += worker.display_name().ljust(longest_subdirectory_name)
+            name_string += TerminalStyle.CLEAR if worker.is_submodule() else ""
 
             location_string = ""
 
@@ -530,17 +581,21 @@ def horizontal_line():
 
 def create_workers():
 
-    subdirectories = get_subdirectories(development_dir)
-    subdirectories.sort()
+    repositories = get_repositories(development_dir)
+    submodules = get_submodules(development_dir)
 
     git_workers = []
     worker_id = 1
 
-    for subdirectory in subdirectories:
-        git_dir = os.path.join(subdirectory, ".git/")
-        if (os.path.isdir(git_dir)):
-            git_workers.append(GitStatusWorker(subdirectory, worker_id))
-            worker_id += 1
+    for repository in repositories:
+        git_workers.append(GitStatusWorker(repository, worker_id, False))
+        worker_id += 1
+
+    for submodule in submodules:
+        git_workers.append(GitStatusWorker(submodule, worker_id, True))
+        worker_id += 1
+
+    git_workers.sort(key=lambda x: x.directory())
 
     return git_workers
 
