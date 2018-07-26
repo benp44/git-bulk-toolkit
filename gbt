@@ -178,9 +178,12 @@ class GitStatusWorker:
         self._modified_files.clear()
         self._untracked_files.clear()
 
-        output = check_output(["git", "rev-list", "HEAD"], cwd=self._directory)
-        output = output.decode("UTF-8")
-        self._repo_id = output.split("\n")[-2]
+        try:
+            output = check_output(["git", "rev-list", "HEAD"], cwd=self._directory, stderr=FNULL)
+            output = output.decode("UTF-8")
+            self._repo_id = output.split("\n")[-2]
+        except:
+            pass
 
         output = check_output(["git", "status", "-sb"], cwd=self._directory)
         output = output.decode("UTF-8")
