@@ -353,8 +353,14 @@ def display_progress(action_text, action_error_method):
                 incomplete_count += 1
 
         progress_line = "\r[" + progress_bar.ljust(len(git_workers)) + TerminalStyle.CLEAR + "] " + action_text + " (" + str(complete_success_count + complete_fail_count) + " / " + str(incomplete_count + complete_success_count + complete_fail_count) + ") "
+        progress_line_abridged = "\r[...] " + action_text + " (" + str(complete_success_count + complete_fail_count) + " / " + str(incomplete_count + complete_success_count + complete_fail_count) + ") "
 
-        sys.stdout.write(progress_line)
+        term_columns, term_lines = shutil.get_terminal_size((80, 20))
+
+        if (len(progress_line) < term_columns):
+            sys.stdout.write(progress_line)
+        else:
+            sys.stdout.write(progress_line_abridged)
 
         if (incomplete_count is 0):
             sys.stdout.write("\r\n")
