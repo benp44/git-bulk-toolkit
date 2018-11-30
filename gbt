@@ -12,6 +12,7 @@ import re
 import shutil
 import sys
 import datetime
+import math
 
 
 class TerminalStyle:
@@ -328,6 +329,23 @@ def write_first_line(filename, line):
     with open(filename, 'w') as f:
         return f.writelines([line])
 
+def get_progress_bar_string(progress):
+    progress_bar_width = 30
+    bar_characters = [" ", "▏", "▎", "▍", "▌", "▋", "▊", "▉"]
+
+    progress_bar = "▕" + TerminalStyle.DIM + TerminalStyle.BLUE
+
+    total_width = math.floor(progress * progress_bar_width)
+    remaining_width = (progress * progress_bar_width) % 1
+
+    partial_width = math.floor(remaining_width * len(bar_characters))
+    partial_char = bar_characters[partial_width]
+    if (progress_bar_width - total_width - 1) < 0:
+        partial_char = ""
+    progress_bar += "█" * total_width + partial_char + " " * (progress_bar_width - total_width - 1)
+    progress_bar += TerminalStyle.CLEAR + "▏"
+
+    return progress_bar
 
 def display_progress(action_text, action_error_method):
 
@@ -337,33 +355,14 @@ def display_progress(action_text, action_error_method):
         complete_fail_count = 0
         incomplete_count = 0
 
-        progress_bar = TerminalStyle.GREEN
+        workers_complete = sum(1 for worker in git_workers if worker.work_in_progress() is False)
 
-        for worker in git_workers:
-            if (worker.work_in_progress() is False):
-                get_error_method = getattr(worker, action_error_method)
-                if (get_error_method() == 0):
-                    progress_bar += "✔"
-                    complete_success_count += 1
-                else:
-                    progress_bar += TerminalStyle.RED + "✕" + TerminalStyle.GREEN
-                    complete_fail_count += 1
-            else:
-                progress_bar += " "
-                incomplete_count += 1
+        progress_bar = get_progress_bar_string(workers_complete / len(git_workers))
+        progress_line = "\r" + progress_bar + " " + action_text + " (" + str(workers_complete) + " / " + str(len(git_workers)) + ") "
+        sys.stdout.write(progress_line)
 
-        progress_line = "\r[" + progress_bar.ljust(len(git_workers)) + TerminalStyle.CLEAR + "] " + action_text + " (" + str(complete_success_count + complete_fail_count) + " / " + str(incomplete_count + complete_success_count + complete_fail_count) + ") "
-        progress_line_abridged = "\r[...] " + action_text + " (" + str(complete_success_count + complete_fail_count) + " / " + str(incomplete_count + complete_success_count + complete_fail_count) + ") "
-
-        term_columns, term_lines = shutil.get_terminal_size((80, 20))
-
-        if (len(progress_line) < term_columns):
-            sys.stdout.write(progress_line)
-        else:
-            sys.stdout.write(progress_line_abridged)
-
-        if (incomplete_count is 0):
-            sys.stdout.write("\r\n")
+        if (workers_complete == len(git_workers)):
+            sys.stdout.write("\r")
             sys.stdout.flush()
             break
 
