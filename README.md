@@ -2,6 +2,18 @@
 
 A simple tool for managing and viewing the status of multiple local git repositories. Pull requests welcome
 
+Example user stories and features of gbt:
+
+**As a git user I'd like to see the state of my locally cloned git repos, relative to their origins**
+ * Fetch on all locally cloned repos, and view a summary of upstream or local changes
+
+**As a git user I'd like to get up to date with the origin on all my locally cloned repos**
+ * Pull on all locally cloned repos
+ 
+**As a git user I'd like to see what changes my team has made over multiple repos, over a set time interval**
+ * View a combined commit history on all locally cloned repos
+
+
 ### Screenshot
 
 ![Screenshot](/screenshot.png?raw=true)
