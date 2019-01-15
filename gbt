@@ -21,6 +21,7 @@ class ConfigValue:
     DEVELOPMENT_DIR = "development_directory"
     REPO_BLACKLIST = "repo_blacklist"
 
+
 class TerminalStyle:
 
     WHITE = "\033[97m"
@@ -33,8 +34,8 @@ class TerminalStyle:
     UNDERLINE = "\033[4m"
     CLEAR = "\033[0m"
 
-class LogEntry:
 
+class LogEntry:
     def __init__(self, repo, timestamp, relative_date, author, message):
 
         self._repo = repo
@@ -60,7 +61,6 @@ class LogEntry:
 
 
 class GitStatusWorker:
-
     def __init__(self, directory, worker_id, is_submodule):
 
         self._directory = directory
@@ -83,7 +83,7 @@ class GitStatusWorker:
 
     def status(self):
 
-        if (self._work_in_progress is False):
+        if self._work_in_progress is False:
             self._error_getting_status = 0
             self._work_in_progress = True
             self._thread = Thread(target=self._thread_method_status)
@@ -91,7 +91,7 @@ class GitStatusWorker:
 
     def fetch(self):
 
-        if (self._work_in_progress is False):
+        if self._work_in_progress is False:
             self._error_fetching = 0
             self._work_in_progress = True
             self._thread = Thread(target=self._thread_method_fetch)
@@ -99,7 +99,7 @@ class GitStatusWorker:
 
     def pull(self):
 
-        if (self._work_in_progress is False):
+        if self._work_in_progress is False:
             self._error_pulling = 0
             self._work_in_progress = True
             self._thread = Thread(target=self._thread_method_pull)
@@ -107,7 +107,7 @@ class GitStatusWorker:
 
     def checkout(self, branch_name):
 
-        if (self._work_in_progress is False):
+        if self._work_in_progress is False:
             self._error_checking_out = 0
             self._work_in_progress = True
             self._thread = Thread(target=self._thread_method_checkout, args=(branch_name,))
@@ -115,7 +115,7 @@ class GitStatusWorker:
 
     def log(self, days_to_log):
 
-        if (self._work_in_progress is False):
+        if self._work_in_progress is False:
             self._error_getting_log = 0
             self._work_in_progress = True
             self._thread = Thread(target=self._thread_method_log, args=(days_to_log,))
@@ -135,7 +135,7 @@ class GitStatusWorker:
 
     def display_name(self):
 
-        if (self._is_submodule):
+        if self._is_submodule:
             return " └ " + os.path.basename(os.path.normpath(self._directory))
         else:
             return os.path.basename(os.path.normpath(self._directory))
@@ -219,16 +219,16 @@ class GitStatusWorker:
 
         try:
             delimiter = "~|~"
-            since_date = (datetime.date.today() - datetime.timedelta(days=days_to_log)).strftime('%Y-%m-%d')
+            since_date = (datetime.date.today() - datetime.timedelta(days=days_to_log)).strftime("%Y-%m-%d")
             output = check_output(["git", "log", "--pretty=format:%ct" + delimiter + "%cr" + delimiter + "%cn" + delimiter + "%s", "--since=" + since_date], cwd=self._directory)
             output = output.decode("UTF-8")
             lines = output.split("\n")
 
             for line in lines:
-                if (len(line) > 0):
+                if len(line) > 0:
                     parts = line.split(delimiter)
 
-                    if (len(parts) == 4):
+                    if len(parts) == 4:
                         entry = LogEntry(self.short_name(), parts[0], parts[1], parts[2], parts[3])
                         self._log_entries.append(entry)
                     else:
@@ -237,11 +237,11 @@ class GitStatusWorker:
         except:
             self._error_getting_log += 1
 
-        self._work_in_progress = False        
+        self._work_in_progress = False
 
     def _thread_method_fetch(self):
 
-        if (self._is_submodule == False):
+        if self._is_submodule == False:
             process = Popen(["git", "fetch"], stdout=PIPE, stderr=PIPE, cwd=self._directory)
             process.communicate()
             self._error_fetching = process.returncode
@@ -250,7 +250,7 @@ class GitStatusWorker:
 
     def _thread_method_checkout(self, branch_name):
 
-        if (self._is_submodule == False):
+        if self._is_submodule == False:
             process = Popen(["git", "checkout", branch_name], stdout=PIPE, stderr=PIPE, cwd=self._directory)
             process.communicate()
             self._error_checking_out = process.returncode
@@ -259,7 +259,7 @@ class GitStatusWorker:
 
     def _thread_method_pull(self):
 
-        if (self._is_submodule == False):
+        if self._is_submodule == False:
             process = Popen(["git", "pull", "--recurse-submodules"], stdout=PIPE, stderr=PIPE, cwd=self._directory)
             process.communicate()
             self._error_pulling = process.returncode
@@ -271,15 +271,15 @@ class GitStatusWorker:
         lines = output.split("\n")
 
         for line in lines:
-            if (line.startswith("##")):
+            if line.startswith("##"):
                 line = line.replace("## ", "")
-                if ("..." in line):
-                    self._branch = line[:line.find("...")]
+                if "..." in line:
+                    self._branch = line[: line.find("...")]
                 else:
                     self._branch = line
 
                 result = re.search("\[(.*)\]", line)
-                if (result):
+                if result:
                     self._location = result.group(1)
 
                 if "No commits yet on" in self._branch:
@@ -289,14 +289,14 @@ class GitStatusWorker:
             else:
                 parts = line.split()
 
-                if (len(parts) == 2):
+                if len(parts) == 2:
                     indicator = parts[0]
                     filename = parts[1]
 
-                    if ("M" in indicator):
+                    if "M" in indicator:
                         self._modified_files.append(filename)
 
-                    if ("??" in indicator):
+                    if "??" in indicator:
                         self._untracked_files.append(filename)
 
 
@@ -309,12 +309,13 @@ def get_repositories(parent_directory):
 
     for path, subdirs, _ in os.walk(parent_directory):
         for subdir in subdirs:
-            if (subdir == ".git"):
+            if subdir == ".git":
                 repo_name = os.path.basename(os.path.normpath(path))
-                if (repo_name not in repo_blacklist):
+                if repo_name not in repo_blacklist:
                     repositories.append(path)
 
     return repositories
+
 
 def get_submodules(parent_directory):
 
@@ -322,27 +323,29 @@ def get_submodules(parent_directory):
 
     for path, _, files in os.walk(parent_directory):
         for file in files:
-            if (file == ".git"):
+            if file == ".git":
                 submodules.append(path)
-    
+
     return submodules
+
 
 def upgrade_existing_config():
 
     config_file_path = get_config_file_path()
     development_dir = ""
 
-    if (os.path.exists(config_file_path)):
-        with open(config_file_path, 'r') as f:
+    if os.path.exists(config_file_path):
+        with open(config_file_path, "r") as f:
             for line in f:
-                if (line != ""):
-                    if ("[default]" not in line):
+                if line != "":
+                    if "[default]" not in line:
                         development_dir = line
                     break
-        
-        if (development_dir != ""):
+
+        if development_dir != "":
             os.remove(config_file_path)
             set_config_value(ConfigValue.DEVELOPMENT_DIR, development_dir)
+
 
 def get_config_value(name):
 
@@ -351,15 +354,16 @@ def get_config_value(name):
 
     config.read(config_file_path)
 
-    if ("default" not in config):
+    if "default" not in config:
         return ""
 
     default_section = config["default"]
-    
-    if (name not in default_section):
+
+    if name not in default_section:
         return ""
 
     return default_section[name]
+
 
 def set_config_value(name, value):
 
@@ -368,13 +372,14 @@ def set_config_value(name, value):
 
     config.read(config_file_path)
 
-    if ("default" not in config):
+    if "default" not in config:
         config["default"] = {}
 
     config["default"][name] = value
-    
-    with open(config_file_path, 'w') as config_file:
+
+    with open(config_file_path, "w") as config_file:
         config.write(config_file)
+
 
 def get_progress_bar_string(progress):
     progress_bar_width = 30
@@ -394,9 +399,10 @@ def get_progress_bar_string(progress):
 
     return progress_bar
 
+
 def display_progress(action_text, action_error_method):
 
-    while (True):
+    while True:
 
         complete_success_count = 0
         complete_fail_count = 0
@@ -408,7 +414,7 @@ def display_progress(action_text, action_error_method):
         progress_line = "\r" + progress_bar + " " + action_text + " (" + str(workers_complete) + " / " + str(len(git_workers)) + ") "
         sys.stdout.write(progress_line)
 
-        if (workers_complete == len(git_workers)):
+        if workers_complete == len(git_workers):
             sys.stdout.write("\r")
             sys.stdout.flush()
             break
@@ -466,16 +472,16 @@ def get_development_dir():
 
     development_dir = get_config_value(ConfigValue.DEVELOPMENT_DIR)
 
-    if (development_dir is ""):
+    if development_dir is "":
         show_help()
 
-    while (development_dir is ""):
-        if (development_dir is ""):
+    while development_dir is "":
+        if development_dir is "":
             provided_directory = input("Development directory not set.\nProvide the directory under which your git repositories reside: [" + os.getcwd() + "]:")
-            if (provided_directory == ""):
+            if provided_directory == "":
                 development_dir = os.getcwd()
             else:
-                if (os.path.isdir(provided_directory)):
+                if os.path.isdir(provided_directory):
                     development_dir = provided_directory
                 else:
                     print("Directory does not exist")
@@ -494,13 +500,13 @@ def print_statuses(git_workers):
     longest_location = 0
 
     for worker in git_workers:
-        if (len(worker.display_name()) > longest_subdirectory_name):
+        if len(worker.display_name()) > longest_subdirectory_name:
             longest_subdirectory_name = len(worker.display_name())
 
-        if (len(worker.branch()) > longest_branch_name):
+        if len(worker.branch()) > longest_branch_name:
             longest_branch_name = len(worker.branch())
 
-        if (len(worker.location()) > longest_location):
+        if len(worker.location()) > longest_location:
             longest_location = len(worker.location())
 
     output_lines = []
@@ -509,17 +515,17 @@ def print_statuses(git_workers):
 
     for worker in git_workers:
 
-        if (worker.error_occurred()):
+        if worker.error_occurred():
             status_string = TerminalStyle.RED + worker.display_name().ljust(longest_subdirectory_name + longest_branch_name + longest_location + 10)
             status_string += "Error(s): "
 
-            if (worker.error_fetching() != 0):
+            if worker.error_fetching() != 0:
                 status_string += "Fetching (" + str(worker.error_fetching()) + ")"
 
-            if (worker.error_pulling() != 0):
+            if worker.error_pulling() != 0:
                 status_string += "Pulling (" + str(worker.error_pulling()) + ")"
 
-            if (worker.error_checking_out() != 0):
+            if worker.error_checking_out() != 0:
                 status_string += "Checking out branch (" + str(worker.error_checking_out()) + ")"
 
             status_string += TerminalStyle.CLEAR
@@ -533,11 +539,11 @@ def print_statuses(git_workers):
 
             location_string = ""
 
-            if ("behind" in worker.location().lower()):
+            if "behind" in worker.location().lower():
 
                 gbt_has_update = worker.is_gbt_repo()
 
-                if (len(worker.modified_files()) + len(worker.untracked_files()) > 0):
+                if len(worker.modified_files()) + len(worker.untracked_files()) > 0:
                     location_string += TerminalStyle.RED
                 else:
                     location_string += TerminalStyle.YELLOW
@@ -545,7 +551,7 @@ def print_statuses(git_workers):
                 location_string += worker.location().rjust(longest_location)
                 work_to_do = True
 
-            elif ("ahead" in worker.location().lower()):
+            elif "ahead" in worker.location().lower():
                 location_string += TerminalStyle.GREEN + worker.location().rjust(longest_location)
                 work_to_do = True
 
@@ -556,12 +562,12 @@ def print_statuses(git_workers):
 
             branch_string = worker.branch().ljust(longest_branch_name)
 
-            if (worker.branch() != "master"):
+            if worker.branch() != "master":
                 branch_string = TerminalStyle.WHITE + worker.branch().ljust(longest_branch_name) + TerminalStyle.CLEAR
 
             status_string = ""
 
-            if (len(worker.modified_files()) + len(worker.untracked_files()) == 0):
+            if len(worker.modified_files()) + len(worker.untracked_files()) == 0:
                 status_string += TerminalStyle.BLUE + "Nothing to commit" + TerminalStyle.CLEAR
 
             else:
@@ -570,13 +576,21 @@ def print_statuses(git_workers):
                 status_string += str(len(worker.modified_files()) + len(worker.untracked_files())) + " file(s) modified/untracked"
                 status_string += TerminalStyle.CLEAR
 
-            print(name_string +
-                  TerminalStyle.DIM + " [ " + TerminalStyle.CLEAR +
-                  location_string +
-                  TerminalStyle.DIM + " on " + TerminalStyle.CLEAR +
-                  branch_string +
-                  TerminalStyle.DIM + " ] " + TerminalStyle.CLEAR +
-                  status_string)
+            print(
+                name_string
+                + TerminalStyle.DIM
+                + " [ "
+                + TerminalStyle.CLEAR
+                + location_string
+                + TerminalStyle.DIM
+                + " on "
+                + TerminalStyle.CLEAR
+                + branch_string
+                + TerminalStyle.DIM
+                + " ] "
+                + TerminalStyle.CLEAR
+                + status_string
+            )
 
     horizontal_line()
 
@@ -599,13 +613,13 @@ def print_logs(git_workers):
     longest_author = 0
 
     for entry in all_log_entries:
-        if (len(entry.relative_date()) > longest_date):
+        if len(entry.relative_date()) > longest_date:
             longest_date = len(entry.relative_date())
 
-        if (len(entry.repo()) > longest_repo):
+        if len(entry.repo()) > longest_repo:
             longest_repo = len(entry.repo())
 
-        if (len(entry.author()) > longest_author):
+        if len(entry.author()) > longest_author:
             longest_author = len(entry.author())
 
     term_columns, term_lines = shutil.get_terminal_size((80, 20))
@@ -618,11 +632,12 @@ def print_logs(git_workers):
         meta_data_string = repo_string + TerminalStyle.DIM + " [ " + TerminalStyle.CLEAR + author_string + " " + date_string + TerminalStyle.DIM + " ] " + TerminalStyle.CLEAR
         message = entry.message()
         space_remaining = term_columns - len(meta_data_string)
-        message_string = (message[:space_remaining - 3] + '...') if len(message) > space_remaining else message
+        message_string = (message[: space_remaining - 3] + "...") if len(message) > space_remaining else message
 
         print(meta_data_string + TerminalStyle.BLUE + message_string + TerminalStyle.CLEAR)
 
     horizontal_line()
+
 
 def horizontal_line():
 
@@ -681,36 +696,36 @@ def show_help():
 
 args = sys.argv[1:]
 
-fetch = ("fetch" in args)
-log = ("log" in args)
-pull = ("pull" in args)
-status = ("status" in args)
-checkout = ("checkout" in args)
-help = ("help" in args or "--help" in args)
+fetch = "fetch" in args
+log = "log" in args
+pull = "pull" in args
+status = "status" in args
+checkout = "checkout" in args
+help = "help" in args or "--help" in args
 
 branch_name = None
 days_to_log = 7
 
-if (help):
+if help:
     show_help()
     exit(0)
 
-if (pull and fetch):
+if pull and fetch:
     print("fetch and pull are incompatible")
     exit(1)
 
-if (checkout and (pull or fetch or status or log)):
+if checkout and (pull or fetch or status or log):
     print("checkout is not compatible with other commands")
     exit(1)
 
-if (log and (pull or fetch or status or checkout)):
+if log and (pull or fetch or status or checkout):
     print("log is not compatible with other commands")
     exit(1)
 
 # Check that there's a branch param for checkout
 
-if (checkout):
-    if (len(args) == 2):
+if checkout:
+    if len(args) == 2:
         branch_name = args[1]
     else:
         print("checkout requires a branch name")
@@ -718,13 +733,13 @@ if (checkout):
 
 # Get the optional days to log param
 
-if (log):
-    if (len(args) == 2):
+if log:
+    if len(args) == 2:
         days_to_log = int(args[1])
 
 # Set the defaults
 
-if ((fetch or pull or status or checkout or log) is False):
+if (fetch or pull or status or checkout or log) is False:
     fetch = True
     status = True
 
@@ -741,26 +756,26 @@ print("Working on [ " + development_dir + " ]")
 
 git_workers = create_workers()
 
-if (checkout):
+if checkout:
     checkout_all(git_workers, branch_name)
 
-elif (log):
+elif log:
     log_all(git_workers, days_to_log)
     print_logs(git_workers)
 
 else:
-    if (pull):
+    if pull:
         pull_all(git_workers)
 
-    elif (fetch):
+    elif fetch:
         fetch_all(git_workers)
 
-    if (status):
+    if status:
         status_all(git_workers)
         work_to_do, gbt_has_update = print_statuses(git_workers)
 
-        if (work_to_do is False):
+        if work_to_do is False:
             print(TerminalStyle.GREEN + "Everything up to date" + TerminalStyle.CLEAR)
 
-        if (gbt_has_update is True):
+        if gbt_has_update is True:
             print(TerminalStyle.GREEN + "Update available for gbt" + TerminalStyle.CLEAR)
