@@ -61,11 +61,11 @@ class LogEntry:
 
 
 class GitStatusWorker:
-    def __init__(self, directory, worker_id, is_submodule):
+    def __init__(self, directory, worker_id, submodule_depth):
 
         self._directory = directory
         self._worker_id = worker_id
-        self._is_submodule = is_submodule
+        self._submodule_depth = submodule_depth
 
         self._work_in_progress = False
         self._repo_id = ""
@@ -127,7 +127,7 @@ class GitStatusWorker:
 
     def is_submodule(self):
 
-        return self._is_submodule
+        return self._submodule_depth > 0
 
     def short_name(self):
 
@@ -135,10 +135,10 @@ class GitStatusWorker:
 
     def display_name(self):
 
-        if self._is_submodule:
-            return " └ " + os.path.basename(os.path.normpath(self._directory))
+        if self.is_submodule():
+            return (" " * (self._submodule_depth - 1)) + "↳ " + self.short_name()
         else:
-            return os.path.basename(os.path.normpath(self._directory))
+            return self.short_name()
 
     def branch(self):
 
@@ -242,7 +242,7 @@ delimiter + "%s %d", "--since=" + since_date, "--branches"], cwd=self._directory
 
     def _thread_method_fetch(self):
 
-        if self._is_submodule == False:
+        if self.is_submodule() == False:
             process = Popen(["git", "fetch"], stdout=PIPE, stderr=PIPE, cwd=self._directory)
             process.communicate()
             self._error_fetching = process.returncode
@@ -251,7 +251,7 @@ delimiter + "%s %d", "--since=" + since_date, "--branches"], cwd=self._directory
 
     def _thread_method_checkout(self, branch_name):
 
-        if self._is_submodule == False:
+        if self.is_submodule() == False:
             process = Popen(["git", "checkout", branch_name], stdout=PIPE, stderr=PIPE, cwd=self._directory)
             process.communicate()
             self._error_checking_out = process.returncode
@@ -260,7 +260,7 @@ delimiter + "%s %d", "--since=" + since_date, "--branches"], cwd=self._directory
 
     def _thread_method_pull(self):
 
-        if self._is_submodule == False:
+        if self.is_submodule() == False:
             process = Popen(["git", "pull", "--recurse-submodules"], stdout=PIPE, stderr=PIPE, cwd=self._directory)
             process.communicate()
             self._error_pulling = process.returncode
@@ -301,34 +301,20 @@ delimiter + "%s %d", "--since=" + since_date, "--branches"], cwd=self._directory
                         self._untracked_files.append(filename)
 
 
-def get_repositories(parent_directory):
+def get_repositories(parent_directory, git_workers, repo_blacklist, submodule_depth = 0):
 
-    repositories = []
+    for path in os.listdir(parent_directory):
+        abs_path = os.path.join(parent_directory, path)
+        git_config_path = os.path.join(abs_path, ".git")
 
-    repo_blacklist = get_config_value(ConfigValue.REPO_BLACKLIST)
-    repo_blacklist_list = repo_blacklist.split(",")
-
-    for path, subdirs, _ in os.walk(parent_directory):
-        for subdir in subdirs:
-            if subdir == ".git":
-                repo_name = os.path.basename(os.path.normpath(path))
-                if repo_name not in repo_blacklist:
-                    repositories.append(path)
-
-    return repositories
-
-
-def get_submodules(parent_directory):
-
-    submodules = []
-
-    for path, _, files in os.walk(parent_directory):
-        for file in files:
-            if file == ".git":
-                submodules.append(path)
-
-    return submodules
-
+        if submodule_depth > 0:
+            if os.path.isfile(git_config_path):
+                git_workers.append(GitStatusWorker(abs_path, len(git_workers), submodule_depth))
+                get_repositories(abs_path, git_workers, repo_blacklist, submodule_depth + 1)
+        elif os.path.isdir(git_config_path):
+            if path not in repo_blacklist:
+                git_workers.append(GitStatusWorker(abs_path, len(git_workers), submodule_depth))
+                get_repositories(abs_path, git_workers, repo_blacklist, submodule_depth + 1)
 
 def upgrade_existing_config():
 
@@ -404,18 +390,14 @@ def get_progress_bar_string(progress):
 def display_progress(action_text, action_error_method):
 
     while True:
-
-        complete_success_count = 0
-        complete_fail_count = 0
-        incomplete_count = 0
-
-        workers_complete = sum(1 for worker in git_workers if worker.work_in_progress() is False)
-
+        workers_busy = sum(1 for worker in git_workers if worker.work_in_progress())
+        
+        workers_complete = len(git_workers) - workers_busy
         progress_bar = get_progress_bar_string(workers_complete / len(git_workers))
-        progress_line = "\r" + progress_bar + " " + action_text + " (" + str(workers_complete) + " / " + str(len(git_workers)) + ") "
+        progress_line = "\r" + progress_bar + " " + action_text + " (" + str(workers_busy) + " workers still busy) "
         sys.stdout.write(progress_line)
 
-        if workers_complete == len(git_workers):
+        if workers_busy == 0:
             sys.stdout.write("\r")
             sys.stdout.flush()
             break
@@ -648,19 +630,12 @@ def horizontal_line():
 
 def create_workers():
 
-    repositories = get_repositories(development_dir)
-    submodules = get_submodules(development_dir)
+    repo_blacklist = get_config_value(ConfigValue.REPO_BLACKLIST)
+    repo_blacklist = repo_blacklist.split(",")
 
     git_workers = []
-    worker_id = 1
 
-    for repository in repositories:
-        git_workers.append(GitStatusWorker(repository, worker_id, False))
-        worker_id += 1
-
-    for submodule in submodules:
-        git_workers.append(GitStatusWorker(submodule, worker_id, True))
-        worker_id += 1
+    get_repositories(development_dir, git_workers, repo_blacklist)
 
     git_workers.sort(key=lambda x: x.directory())
 
