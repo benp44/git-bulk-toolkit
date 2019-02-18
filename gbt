@@ -221,7 +221,7 @@ class GitStatusWorker:
             delimiter = "~|~"
             since_date = (datetime.date.today() - datetime.timedelta(days=days_to_log)).strftime("%Y-%m-%d")
             output = check_output(["git", "log", "--pretty=format:%ct" + delimiter + "%cr" + delimiter + "%cn" + 
-delimiter + "%s %d", "--since=" + since_date, "--branches"], cwd=self._directory)
+delimiter + "%s %d", "--since=" + since_date, "--all"], cwd=self._directory)
             output = output.decode("UTF-8")
             lines = output.split("\n")
 
