@@ -308,7 +308,7 @@ def get_repositories(parent_directory, git_workers, repo_blacklist, submodule_de
         git_config_path = os.path.join(abs_path, ".git")
 
         if submodule_depth > 0:
-            if os.path.isfile(git_config_path):
+            if os.path.isfile(git_config_path) and path not in repo_blacklist:
                 git_workers.append(GitStatusWorker(abs_path, len(git_workers), submodule_depth))
                 get_repositories(abs_path, git_workers, repo_blacklist, submodule_depth + 1)
         elif os.path.isdir(git_config_path):
