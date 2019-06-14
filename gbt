@@ -75,16 +75,16 @@ class GitStatusWorker:
         self._untracked_files = []
         self._log_entries = []
 
-        self._error_pulling = 0
-        self._error_checking_out = 0
-        self._error_getting_status = 0
-        self._error_fetching = 0
-        self._error_getting_log = 0
+        self._error_pulling = ""
+        self._error_checking_out = ""
+        self._error_getting_status = ""
+        self._error_fetching = ""
+        self._error_getting_log = ""
 
     def status(self):
 
         if self._work_in_progress is False:
-            self._error_getting_status = 0
+            self._error_getting_status = ""
             self._work_in_progress = True
             self._thread = Thread(target=self._thread_method_status)
             self._thread.start()
@@ -92,7 +92,7 @@ class GitStatusWorker:
     def fetch(self):
 
         if self._work_in_progress is False:
-            self._error_fetching = 0
+            self._error_fetching = ""
             self._work_in_progress = True
             self._thread = Thread(target=self._thread_method_fetch)
             self._thread.start()
@@ -100,7 +100,7 @@ class GitStatusWorker:
     def pull(self):
 
         if self._work_in_progress is False:
-            self._error_pulling = 0
+            self._error_pulling = ""
             self._work_in_progress = True
             self._thread = Thread(target=self._thread_method_pull)
             self._thread.start()
@@ -108,7 +108,7 @@ class GitStatusWorker:
     def checkout(self, branch_name):
 
         if self._work_in_progress is False:
-            self._error_checking_out = 0
+            self._error_checking_out = ""
             self._work_in_progress = True
             self._thread = Thread(target=self._thread_method_checkout, args=(branch_name,))
             self._thread.start()
@@ -116,7 +116,7 @@ class GitStatusWorker:
     def log(self, days_to_log):
 
         if self._work_in_progress is False:
-            self._error_getting_log = 0
+            self._error_getting_log = ""
             self._work_in_progress = True
             self._thread = Thread(target=self._thread_method_log, args=(days_to_log,))
             self._thread.start()
@@ -190,7 +190,7 @@ class GitStatusWorker:
 
     def error_occurred(self):
 
-        return self.error_pulling() != 0 or self.error_checking_out() != 0 or self.error_getting_status() != 0 or self.error_fetching() != 0 or self.error_getting_log() != 0
+        return self.error_pulling() != "" or self.error_checking_out() != "" or self.error_getting_status() != "" or self.error_fetching() != "" or self.error_getting_log() != ""
 
     def join(self):
 
@@ -233,10 +233,10 @@ delimiter + "%s %d", "--since=" + since_date, "--all"], cwd=self._directory)
                         entry = LogEntry(self.short_name(), parts[0], parts[1], parts[2], parts[3])
                         self._log_entries.append(entry)
                     else:
-                        self._error_getting_log += 1
+                        self._error_getting_log = "Could not parse log entry"
 
-        except:
-            self._error_getting_log += 1
+        except Exception as ex:
+            self._error_getting_log = str(ex)
 
         self._work_in_progress = False
 
@@ -244,8 +244,9 @@ delimiter + "%s %d", "--since=" + since_date, "--all"], cwd=self._directory)
 
         if self.is_submodule() == False:
             process = Popen(["git", "fetch"], stdout=PIPE, stderr=PIPE, cwd=self._directory)
-            process.communicate()
-            self._error_fetching = process.returncode
+            results = process.communicate()
+            if process.returncode != 0:
+                self._error_fetching = results[1].decode("utf-8") 
 
         self._work_in_progress = False
 
@@ -253,8 +254,9 @@ delimiter + "%s %d", "--since=" + since_date, "--all"], cwd=self._directory)
 
         if self.is_submodule() == False:
             process = Popen(["git", "checkout", branch_name], stdout=PIPE, stderr=PIPE, cwd=self._directory)
-            process.communicate()
-            self._error_checking_out = process.returncode
+            results = process.communicate()
+            if process.returncode != 0:
+                self._error_checking_out = results[1].decode("utf-8") 
 
         self._work_in_progress = False
 
@@ -262,8 +264,9 @@ delimiter + "%s %d", "--since=" + since_date, "--all"], cwd=self._directory)
 
         if self.is_submodule() == False:
             process = Popen(["git", "pull", "--recurse-submodules"], stdout=PIPE, stderr=PIPE, cwd=self._directory)
-            process.communicate()
-            self._error_pulling = process.returncode
+            results = process.communicate()
+            if process.returncode != 0:
+                self._error_pulling = results[1].decode("utf-8") 
 
         self._work_in_progress = False
 
@@ -387,7 +390,7 @@ def get_progress_bar_string(progress):
     return progress_bar
 
 
-def display_progress(action_text, action_error_method):
+def display_progress(action_text):
 
     while True:
         workers_busy = sum(1 for worker in git_workers if worker.work_in_progress())
@@ -411,7 +414,7 @@ def pull_all(git_workers):
     for worker in git_workers:
         worker.pull()
 
-    display_progress("Pulling", "error_pulling")
+    display_progress("Pulling")
 
 
 def checkout_all(git_workers, branch_name):
@@ -419,7 +422,7 @@ def checkout_all(git_workers, branch_name):
     for worker in git_workers:
         worker.checkout(branch_name)
 
-    display_progress("Checking out " + branch_name, "error_checking_out")
+    display_progress("Checking out " + branch_name)
 
 
 def log_all(git_workers, days_to_log):
@@ -427,7 +430,7 @@ def log_all(git_workers, days_to_log):
     for worker in git_workers:
         worker.log(days_to_log)
 
-    display_progress("Getting logs for last " + str(days_to_log) + " day(s)", "error_getting_log")
+    display_progress("Getting logs for last " + str(days_to_log) + " day(s)")
 
 
 def fetch_all(git_workers):
@@ -435,7 +438,7 @@ def fetch_all(git_workers):
     for worker in git_workers:
         worker.fetch()
 
-    display_progress("Fetching", "error_fetching")
+    display_progress("Fetching")
 
 
 def status_all(git_workers):
@@ -443,7 +446,7 @@ def status_all(git_workers):
     for worker in git_workers:
         worker.status()
 
-    display_progress("Getting status", "error_getting_status")
+    display_progress("Getting status")
 
 
 def get_config_file_path():
@@ -500,16 +503,16 @@ def print_statuses(git_workers):
 
         if worker.error_occurred():
             status_string = TerminalStyle.RED + worker.display_name().ljust(longest_subdirectory_name + longest_branch_name + longest_location + 10)
-            status_string += "Error(s): "
+            status_string += "Error "
 
-            if worker.error_fetching() != 0:
-                status_string += "Fetching (" + str(worker.error_fetching()) + ")"
+            if worker.error_fetching() != "":
+                status_string += "fetching: " + worker.error_fetching().replace("\n", " // ")
 
-            if worker.error_pulling() != 0:
-                status_string += "Pulling (" + str(worker.error_pulling()) + ")"
+            if worker.error_pulling() != "":
+                status_string += "pulling: " + worker.error_pulling().replace("\n", " // ")
 
-            if worker.error_checking_out() != 0:
-                status_string += "Checking out branch (" + str(worker.error_checking_out()) + ")"
+            if worker.error_checking_out() != "":
+                status_string += "checking out branch: " + worker.error_checking_out().replace("\n", " // ")
 
             status_string += TerminalStyle.CLEAR
 
