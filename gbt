@@ -548,13 +548,13 @@ def print_statuses(git_workers):
 
             branch_string = worker.branch().ljust(longest_branch_name)
 
-            if worker.branch() != "master":
-                branch_string = TerminalStyle.WHITE + worker.branch().ljust(longest_branch_name) + TerminalStyle.CLEAR
+            if worker.branch() != "master" and worker.branch() != "HEAD (no branch)":
+                branch_string = TerminalStyle.BLUE + worker.branch().ljust(longest_branch_name) + TerminalStyle.CLEAR
 
             status_string = ""
 
             if len(worker.modified_files()) + len(worker.untracked_files()) == 0:
-                status_string += TerminalStyle.BLUE + "Nothing to commit" + TerminalStyle.CLEAR
+                status_string += "Nothing to commit"
 
             else:
                 work_to_do = True
