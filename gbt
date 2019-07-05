@@ -505,14 +505,19 @@ def print_statuses(git_workers):
             status_string = TerminalStyle.RED + worker.display_name().ljust(longest_subdirectory_name + longest_branch_name + longest_location + 10)
             status_string += "Error "
 
+            term_columns, _ = shutil.get_terminal_size((80, 20))
+
             if worker.error_fetching() != "":
-                status_string += "fetching: " + worker.error_fetching().replace("\n", " // ")
+                error = "fetching: " + worker.error_fetching().replace("\n", " ")
+                status_string += error[:term_columns - len(status_string)]
 
             if worker.error_pulling() != "":
-                status_string += "pulling: " + worker.error_pulling().replace("\n", " // ")
+                error = "pulling: " + worker.error_pulling().replace("\n", " ")
+                status_string += error[:term_columns - len(status_string)]
 
             if worker.error_checking_out() != "":
-                status_string += "checking out branch: " + worker.error_checking_out().replace("\n", " // ")
+                error = "checking out branch: " + worker.error_checking_out().replace("\n", " ")
+                status_string += error[:term_columns - len(status_string)]
 
             status_string += TerminalStyle.CLEAR
 
