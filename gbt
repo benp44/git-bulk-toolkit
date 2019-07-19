@@ -678,88 +678,95 @@ def show_help():
 
 # Start program
 
-args = sys.argv[1:]
+try:
 
-fetch = "fetch" in args
-log = "log" in args
-pull = "pull" in args
-status = "status" in args
-checkout = "checkout" in args
-help = "help" in args or "--help" in args
+    args = sys.argv[1:]
 
-branch_name = None
-days_to_log = 7
+    fetch = "fetch" in args
+    log = "log" in args
+    pull = "pull" in args
+    status = "status" in args
+    checkout = "checkout" in args
+    help = "help" in args or "--help" in args
 
-if help:
-    show_help()
-    exit(0)
+    branch_name = None
+    days_to_log = 7
 
-if pull and fetch:
-    print("fetch and pull are incompatible")
-    exit(1)
+    if help:
+        show_help()
+        exit(0)
 
-if checkout and (pull or fetch or status or log):
-    print("checkout is not compatible with other commands")
-    exit(1)
-
-if log and (pull or fetch or status or checkout):
-    print("log is not compatible with other commands")
-    exit(1)
-
-# Check that there's a branch param for checkout
-
-if checkout:
-    if len(args) == 2:
-        branch_name = args[1]
-    else:
-        print("checkout requires a branch name")
+    if pull and fetch:
+        print("fetch and pull are incompatible")
         exit(1)
 
-# Get the optional days to log param
+    if checkout and (pull or fetch or status or log):
+        print("checkout is not compatible with other commands")
+        exit(1)
 
-if log:
-    if len(args) == 2:
-        days_to_log = int(args[1])
+    if log and (pull or fetch or status or checkout):
+        print("log is not compatible with other commands")
+        exit(1)
 
-# Set the defaults
+    # Check that there's a branch param for checkout
 
-if (fetch or pull or status or checkout or log) is False:
-    fetch = True
-    status = True
+    if checkout:
+        if len(args) == 2:
+            branch_name = args[1]
+        else:
+            print("checkout requires a branch name")
+            exit(1)
 
-# Upgrade any old config file
+    # Get the optional days to log param
 
-upgrade_existing_config()
+    if log:
+        if len(args) == 2:
+            days_to_log = int(args[1])
 
-# Get the configured development directory, or ask for it
+    # Set the defaults
 
-development_dir = get_development_dir()
-print("Working on [ " + development_dir + " ]")
+    if (fetch or pull or status or checkout or log) is False:
+        fetch = True
+        status = True
 
-# Do the work
+    # Upgrade any old config file
 
-git_workers = create_workers()
+    upgrade_existing_config()
 
-if checkout:
-    checkout_all(git_workers, branch_name)
+    # Get the configured development directory, or ask for it
 
-elif log:
-    log_all(git_workers, days_to_log)
-    print_logs(git_workers)
+    development_dir = get_development_dir()
+    print("Working on [ " + development_dir + " ]")
 
-else:
-    if pull:
-        pull_all(git_workers)
+    # Do the work
 
-    elif fetch:
-        fetch_all(git_workers)
+    git_workers = create_workers()
 
-    if status:
-        status_all(git_workers)
-        work_to_do, gbt_has_update = print_statuses(git_workers)
+    if checkout:
+        checkout_all(git_workers, branch_name)
 
-        if work_to_do is False:
-            print(TerminalStyle.GREEN + "Everything up to date" + TerminalStyle.CLEAR)
+    elif log:
+        log_all(git_workers, days_to_log)
+        print_logs(git_workers)
 
-        if gbt_has_update is True:
-            print(TerminalStyle.GREEN + "Update available for gbt" + TerminalStyle.CLEAR)
+    else:
+        if pull:
+            pull_all(git_workers)
+
+        elif fetch:
+            fetch_all(git_workers)
+
+        if status:
+            status_all(git_workers)
+            work_to_do, gbt_has_update = print_statuses(git_workers)
+
+            if work_to_do is False:
+                print(TerminalStyle.GREEN + "Everything up to date" + TerminalStyle.CLEAR)
+
+            if gbt_has_update is True:
+                print(TerminalStyle.GREEN + "Update available for gbt" + TerminalStyle.CLEAR)
+
+except KeyboardInterrupt:
+    print("")
+    print("Interrupted. Exiting...")
+    sys.exit(1)
