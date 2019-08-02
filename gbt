@@ -236,11 +236,12 @@ class GitStatusWorker:
 
                         commit_hash = parts[0]
                         timestamp = parts[1]
-                        relative_date= parts[2]
+                        relative_date = parts[2]
                         author = parts[3]
                         message = parts[4]
 
                         branch_list = self._get_branches_containing_commit(commit_hash)
+                        relative_date = self._abbreviate_relative_date(relative_date)
 
                         entry = LogEntry(self.short_name(), timestamp, relative_date, author, message, branch_list)
                         self._log_entries.append(entry)
@@ -251,6 +252,25 @@ class GitStatusWorker:
             self._error_getting_log = str(ex)
 
         self._work_in_progress = False
+
+    def _abbreviate_relative_date(self, relative_date):
+        
+        relative_date = relative_date.replace(" seconds", "s")
+        relative_date = relative_date.replace(" second", "s")
+        relative_date = relative_date.replace(" minutes", "m")
+        relative_date = relative_date.replace(" minute", "m")
+        relative_date = relative_date.replace(" hours", "h")
+        relative_date = relative_date.replace(" hour", "h")
+        relative_date = relative_date.replace(" days", "d")
+        relative_date = relative_date.replace(" day", "d")
+        relative_date = relative_date.replace(" weeks", "w")
+        relative_date = relative_date.replace(" week", "w")
+        relative_date = relative_date.replace(" months", "mo")
+        relative_date = relative_date.replace(" month", "mo")
+        relative_date = relative_date.replace(" years", "y")
+        relative_date = relative_date.replace(" year", "y")
+
+        return relative_date
 
     def _get_branches_containing_commit(self, commit_hash):
         
