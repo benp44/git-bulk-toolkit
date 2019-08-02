@@ -36,14 +36,14 @@ class TerminalStyle:
 
 
 class LogEntry:
-    def __init__(self, repo, timestamp, relative_date, author, message, decorator):
+    def __init__(self, repo, timestamp, relative_date, author, message, branch_list):
 
         self._repo = repo
         self._timestamp = timestamp
         self._relative_date = relative_date
         self._author = author
         self._message = message
-        self._decorator = decorator
+        self._branch_list = branch_list
 
     def repo(self):
         return self._repo
@@ -60,20 +60,8 @@ class LogEntry:
     def message(self):
         return self._message
 
-    def decorator(self):
-        decorator_string = self._decorator
-        decorator_string = decorator_string.replace("origin/", "")
-        decorator_string = decorator_string.replace("(", "")
-        decorator_string = decorator_string.replace(")", "")
-        parts = decorator_string.split(",")
-
-        parts = [x.strip() for x in parts]
-        parts = list(filter(None, parts))
-        while "HEAD" in parts: parts.remove("HEAD")
-        while "HEAD -> master" in parts: parts.remove("HEAD -> master")   
-        parts = list(dict.fromkeys(parts))
-
-        return ', '.join(parts)
+    def branch_list(self):
+        return self._branch_list
 
 
 class GitStatusWorker:
@@ -236,8 +224,7 @@ class GitStatusWorker:
         try:
             delimiter = "~|~"
             since_date = (datetime.date.today() - datetime.timedelta(days=days_to_log)).strftime("%Y-%m-%d")
-            output = check_output(["git", "log", "--pretty=format:%ct" + delimiter + "%cr" + delimiter + "%cn" + 
-delimiter + "%s" + delimiter + "%d", "--since=" + since_date, "--all"], cwd=self._directory)
+            output = check_output(["git", "log", "--pretty=format:%h" + delimiter + "%ct" + delimiter + "%cr" + delimiter + "%cn" + delimiter + "%s", "--since=" + since_date, "--all"], cwd=self._directory)
             output = output.decode("UTF-8")
             lines = output.split("\n")
 
@@ -246,7 +233,16 @@ delimiter + "%s" + delimiter + "%d", "--since=" + since_date, "--all"], cwd=self
                     parts = line.split(delimiter)
 
                     if len(parts) == 5:
-                        entry = LogEntry(self.short_name(), parts[0], parts[1], parts[2], parts[3], parts[4])
+
+                        commit_hash = parts[0]
+                        timestamp = parts[1]
+                        relative_date= parts[2]
+                        author = parts[3]
+                        message = parts[4]
+
+                        branch_list = self._get_branches_containing_commit(commit_hash)
+
+                        entry = LogEntry(self.short_name(), timestamp, relative_date, author, message, branch_list)
                         self._log_entries.append(entry)
                     else:
                         self._error_getting_log = "Could not parse log entry"
@@ -255,6 +251,19 @@ delimiter + "%s" + delimiter + "%d", "--since=" + since_date, "--all"], cwd=self
             self._error_getting_log = str(ex)
 
         self._work_in_progress = False
+
+    def _get_branches_containing_commit(self, commit_hash):
+        
+        output = check_output(["git", "branch", "-r", "--contains", commit_hash], cwd=self._directory)
+        output = output.decode("UTF-8")
+
+        output = output.replace("origin/", "") # Remove origin parts
+        lines = output.split("\n")
+        lines = [line.strip() for line in lines] # Remove whitespace
+        lines = list(filter(None, lines)) # Remove any empty entries
+        lines = [ line for line in lines if "HEAD ->" not in line ] # Remove the HEAD -> entries
+
+        return ', '.join(lines)
 
     def _thread_method_fetch(self):
 
@@ -618,7 +627,7 @@ def print_logs(git_workers):
     longest_date = 0
     longest_repo = 0
     longest_author = 0
-    longest_decorator = 0
+    longest_branch_list = 0
 
     for entry in all_log_entries:
         if len(entry.relative_date()) > longest_date:
@@ -630,8 +639,8 @@ def print_logs(git_workers):
         if len(entry.author()) > longest_author:
             longest_author = len(entry.author())
 
-        if len(entry.decorator()) > longest_decorator:
-            longest_decorator = len(entry.decorator())            
+        if len(entry.branch_list()) > longest_branch_list:
+            longest_branch_list = len(entry.branch_list())            
 
     term_columns, term_lines = shutil.get_terminal_size((80, 20))
 
@@ -639,9 +648,9 @@ def print_logs(git_workers):
         repo_string = entry.repo().ljust(longest_repo)
         date_string = entry.relative_date().ljust(longest_date)
         author_string = entry.author().ljust(longest_author)
-        decorator_string = entry.decorator().ljust(longest_decorator)
+        branch_list_string = entry.branch_list().ljust(longest_branch_list)
 
-        meta_data_string = repo_string + TerminalStyle.DIM + " [ " + TerminalStyle.CLEAR + author_string + " " + date_string + " " + TerminalStyle.BLUE + decorator_string +  TerminalStyle.CLEAR + TerminalStyle.DIM + " ] " + TerminalStyle.CLEAR
+        meta_data_string = repo_string + TerminalStyle.DIM + " [ " + TerminalStyle.CLEAR + author_string + " " + date_string + " " + TerminalStyle.BLUE + branch_list_string +  TerminalStyle.CLEAR + TerminalStyle.DIM + " ] " + TerminalStyle.CLEAR
         message = entry.message()
         space_remaining = term_columns - len(meta_data_string)
         message_string = (message[: space_remaining - 3] + "...") if len(message) > space_remaining else message
