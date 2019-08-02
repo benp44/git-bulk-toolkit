@@ -36,13 +36,14 @@ class TerminalStyle:
 
 
 class LogEntry:
-    def __init__(self, repo, timestamp, relative_date, author, message):
+    def __init__(self, repo, timestamp, relative_date, author, message, decorator):
 
         self._repo = repo
         self._timestamp = timestamp
         self._relative_date = relative_date
         self._author = author
         self._message = message
+        self._decorator = decorator
 
     def repo(self):
         return self._repo
@@ -58,6 +59,21 @@ class LogEntry:
 
     def message(self):
         return self._message
+
+    def decorator(self):
+        decorator_string = self._decorator
+        decorator_string = decorator_string.replace("origin/", "")
+        decorator_string = decorator_string.replace("(", "")
+        decorator_string = decorator_string.replace(")", "")
+        parts = decorator_string.split(",")
+
+        parts = [x.strip() for x in parts]
+        parts = list(filter(None, parts))
+        while "HEAD" in parts: parts.remove("HEAD")
+        while "HEAD -> master" in parts: parts.remove("HEAD -> master")   
+        parts = list(dict.fromkeys(parts))
+
+        return ', '.join(parts)
 
 
 class GitStatusWorker:
@@ -221,7 +237,7 @@ class GitStatusWorker:
             delimiter = "~|~"
             since_date = (datetime.date.today() - datetime.timedelta(days=days_to_log)).strftime("%Y-%m-%d")
             output = check_output(["git", "log", "--pretty=format:%ct" + delimiter + "%cr" + delimiter + "%cn" + 
-delimiter + "%s %d", "--since=" + since_date, "--all"], cwd=self._directory)
+delimiter + "%s" + delimiter + "%d", "--since=" + since_date, "--all"], cwd=self._directory)
             output = output.decode("UTF-8")
             lines = output.split("\n")
 
@@ -229,8 +245,8 @@ delimiter + "%s %d", "--since=" + since_date, "--all"], cwd=self._directory)
                 if len(line) > 0:
                     parts = line.split(delimiter)
 
-                    if len(parts) == 4:
-                        entry = LogEntry(self.short_name(), parts[0], parts[1], parts[2], parts[3])
+                    if len(parts) == 5:
+                        entry = LogEntry(self.short_name(), parts[0], parts[1], parts[2], parts[3], parts[4])
                         self._log_entries.append(entry)
                     else:
                         self._error_getting_log = "Could not parse log entry"
@@ -602,6 +618,7 @@ def print_logs(git_workers):
     longest_date = 0
     longest_repo = 0
     longest_author = 0
+    longest_decorator = 0
 
     for entry in all_log_entries:
         if len(entry.relative_date()) > longest_date:
@@ -613,19 +630,23 @@ def print_logs(git_workers):
         if len(entry.author()) > longest_author:
             longest_author = len(entry.author())
 
+        if len(entry.decorator()) > longest_decorator:
+            longest_decorator = len(entry.decorator())            
+
     term_columns, term_lines = shutil.get_terminal_size((80, 20))
 
     for entry in all_log_entries:
         repo_string = entry.repo().ljust(longest_repo)
         date_string = entry.relative_date().ljust(longest_date)
         author_string = entry.author().ljust(longest_author)
+        decorator_string = entry.decorator().ljust(longest_decorator)
 
-        meta_data_string = repo_string + TerminalStyle.DIM + " [ " + TerminalStyle.CLEAR + author_string + " " + date_string + TerminalStyle.DIM + " ] " + TerminalStyle.CLEAR
+        meta_data_string = repo_string + TerminalStyle.DIM + " [ " + TerminalStyle.CLEAR + author_string + " " + date_string + " " + TerminalStyle.BLUE + decorator_string +  TerminalStyle.CLEAR + TerminalStyle.DIM + " ] " + TerminalStyle.CLEAR
         message = entry.message()
         space_remaining = term_columns - len(meta_data_string)
         message_string = (message[: space_remaining - 3] + "...") if len(message) > space_remaining else message
 
-        print(meta_data_string + TerminalStyle.BLUE + message_string + TerminalStyle.CLEAR)
+        print(meta_data_string + TerminalStyle.YELLOW + message_string + TerminalStyle.CLEAR)
 
     horizontal_line()
 
