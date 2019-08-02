@@ -35,6 +35,9 @@ class TerminalStyle:
     CLEAR = "\033[0m"
 
 
+class OutputFormat:
+    COLUMN_SEPARATOR = TerminalStyle.DIM + " │ " + TerminalStyle.CLEAR
+
 class LogEntry:
     def __init__(self, repo, timestamp, relative_date, author, message, branch_list):
 
@@ -614,17 +617,13 @@ def print_statuses(git_workers):
 
             print(
                 name_string
-                + TerminalStyle.DIM
-                + " [ "
-                + TerminalStyle.CLEAR
+                + OutputFormat.COLUMN_SEPARATOR
                 + location_string
                 + TerminalStyle.DIM
                 + " on "
                 + TerminalStyle.CLEAR
                 + branch_string
-                + TerminalStyle.DIM
-                + " ] "
-                + TerminalStyle.CLEAR
+                + OutputFormat.COLUMN_SEPARATOR
                 + status_string
             )
 
@@ -670,7 +669,7 @@ def print_logs(git_workers):
         author_string = entry.author().ljust(longest_author)
         branch_list_string = entry.branch_list().ljust(longest_branch_list)
 
-        meta_data_string = repo_string + TerminalStyle.DIM + " [ " + TerminalStyle.CLEAR + author_string + " " + date_string + " " + TerminalStyle.BLUE + branch_list_string +  TerminalStyle.CLEAR + TerminalStyle.DIM + " ] " + TerminalStyle.CLEAR
+        meta_data_string = repo_string + OutputFormat.COLUMN_SEPARATOR + author_string + OutputFormat.COLUMN_SEPARATOR + date_string + OutputFormat.COLUMN_SEPARATOR + TerminalStyle.BLUE + branch_list_string +  TerminalStyle.CLEAR + OutputFormat.COLUMN_SEPARATOR
         message = entry.message()
         space_remaining = term_columns - len(meta_data_string)
         message_string = (message[: space_remaining - 3] + "...") if len(message) > space_remaining else message
