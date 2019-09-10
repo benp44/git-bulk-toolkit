@@ -39,6 +39,7 @@ class OutputFormat:
     COLUMN_SEPARATOR = " │ "
     COLUMN_SEPARATOR_FORMATTED = TerminalStyle.DIM + COLUMN_SEPARATOR + TerminalStyle.CLEAR
 
+
 class LogEntry:
     def __init__(self, repo, timestamp, relative_date, author, message, branch_list):
 
@@ -258,7 +259,7 @@ class GitStatusWorker:
         self._work_in_progress = False
 
     def _abbreviate_relative_date(self, relative_date):
-        
+
         relative_date = relative_date.replace(" seconds", "s")
         relative_date = relative_date.replace(" second", "s")
         relative_date = relative_date.replace(" minutes", "m")
@@ -277,15 +278,15 @@ class GitStatusWorker:
         return relative_date
 
     def _get_branches_containing_commit(self, commit_hash):
-        
+
         output = check_output(["git", "branch", "-r", "--contains", commit_hash], cwd=self._directory)
         output = output.decode("UTF-8")
 
-        output = output.replace("origin/", "") # Remove origin parts
+        output = output.replace("origin/", "")  # Remove origin parts
         lines = output.split("\n")
-        lines = [line.strip() for line in lines] # Remove whitespace
-        lines = list(filter(None, lines)) # Remove any empty entries
-        lines = [ line for line in lines if "HEAD ->" not in line ] # Remove the HEAD -> entries
+        lines = [line.strip() for line in lines]  # Remove whitespace
+        lines = list(filter(None, lines))  # Remove any empty entries
+        lines = [line for line in lines if "HEAD ->" not in line]  # Remove the HEAD -> entries
 
         return ', '.join(lines)
 
@@ -295,7 +296,7 @@ class GitStatusWorker:
             process = Popen(["git", "fetch"], stdout=PIPE, stderr=PIPE, cwd=self._directory)
             results = process.communicate()
             if process.returncode != 0:
-                self._error_fetching = results[1].decode("utf-8") 
+                self._error_fetching = results[1].decode("utf-8")
 
         self._work_in_progress = False
 
@@ -305,7 +306,7 @@ class GitStatusWorker:
             process = Popen(["git", "checkout", branch_name], stdout=PIPE, stderr=PIPE, cwd=self._directory)
             results = process.communicate()
             if process.returncode != 0:
-                self._error_checking_out = results[1].decode("utf-8") 
+                self._error_checking_out = results[1].decode("utf-8")
 
         self._work_in_progress = False
 
@@ -315,7 +316,7 @@ class GitStatusWorker:
             process = Popen(["git", "pull", "--recurse-submodules"], stdout=PIPE, stderr=PIPE, cwd=self._directory)
             results = process.communicate()
             if process.returncode != 0:
-                self._error_pulling = results[1].decode("utf-8") 
+                self._error_pulling = results[1].decode("utf-8")
 
         self._work_in_progress = False
 
@@ -353,7 +354,7 @@ class GitStatusWorker:
                         self._untracked_files.append(filename)
 
 
-def get_repositories(parent_directory, git_workers, repo_blacklist, submodule_depth = 0):
+def get_repositories(parent_directory, git_workers, repo_blacklist, submodule_depth=0):
 
     for path in os.listdir(parent_directory):
         abs_path = os.path.join(parent_directory, path)
@@ -367,6 +368,7 @@ def get_repositories(parent_directory, git_workers, repo_blacklist, submodule_de
             if path not in repo_blacklist:
                 git_workers.append(GitStatusWorker(abs_path, len(git_workers), submodule_depth))
                 get_repositories(abs_path, git_workers, repo_blacklist, submodule_depth + 1)
+
 
 def upgrade_existing_config():
 
@@ -443,7 +445,7 @@ def display_progress(action_text):
 
     while True:
         workers_busy = sum(1 for worker in git_workers if worker.work_in_progress())
-        
+
         workers_complete = len(git_workers) - workers_busy
         progress_bar = get_progress_bar_string(workers_complete / len(git_workers))
         progress_line = "\r" + progress_bar + " " + action_text + " (" + str(workers_busy) + " workers still busy) "
@@ -660,7 +662,7 @@ def print_logs(git_workers):
             longest_author = len(entry.author())
 
         if len(entry.branch_list()) > longest_branch_list:
-            longest_branch_list = len(entry.branch_list())            
+            longest_branch_list = len(entry.branch_list())
 
     term_columns, term_lines = shutil.get_terminal_size((120, 20))
 
@@ -671,10 +673,10 @@ def print_logs(git_workers):
         branch_list_string = entry.branch_list().ljust(longest_branch_list)
 
         meta_data_string_clean = repo_string + author_string + date_string + branch_list_string
-        meta_data_string = repo_string + OutputFormat.COLUMN_SEPARATOR_FORMATTED + author_string + OutputFormat.COLUMN_SEPARATOR_FORMATTED + date_string + OutputFormat.COLUMN_SEPARATOR_FORMATTED + TerminalStyle.BLUE + branch_list_string +  TerminalStyle.CLEAR + OutputFormat.COLUMN_SEPARATOR_FORMATTED
+        meta_data_string = repo_string + OutputFormat.COLUMN_SEPARATOR_FORMATTED + author_string + OutputFormat.COLUMN_SEPARATOR_FORMATTED + date_string + OutputFormat.COLUMN_SEPARATOR_FORMATTED + TerminalStyle.BLUE + branch_list_string + TerminalStyle.CLEAR + OutputFormat.COLUMN_SEPARATOR_FORMATTED
         space_remaining = term_columns - len(meta_data_string_clean) - (len(OutputFormat.COLUMN_SEPARATOR) * 4)
-        
-        message = entry.message()        
+
+        message = entry.message()
         message_string = (message[: space_remaining - 3] + "...") if len(message) > space_remaining else message
 
         print(meta_data_string + TerminalStyle.YELLOW + message_string + TerminalStyle.CLEAR)

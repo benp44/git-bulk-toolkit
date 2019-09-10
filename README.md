@@ -9,7 +9,7 @@ Example user stories and features of gbt:
 
 **As a git user I'd like to get up to date with the origin on all my locally cloned repos**
  * Pull on all locally cloned repos
- 
+
 **As a git user I'd like to see what changes my team has made over multiple repos, over a set time interval**
  * View a combined commit history on all locally cloned repos
 
@@ -21,7 +21,7 @@ Example user stories and features of gbt:
 ### Installation
 
 Clone the repo and alias to the script in .bashrc, .zshrc, etc. For example:
-  
+
     alias gbs='~/Development/git-bulk-toolkit/gbt fetch status'
     alias gbp='~/Development/git-bulk-toolkit/gbt pull status'
     alias gbc='~/Development/git-bulk-toolkit/gbt checkout'
@@ -38,19 +38,19 @@ When first run, gbt will ask you to select a development directory. It then oper
 Show status for all repositories under development directory:
 
     gbt status
- 
+
 Run 'git fetch' on all repositories under development directory, and show status:
 
     gbt fetch status
-    
+
 Run 'git pull' on all repositories under development directory:
 
     gbt pull
 
 Run 'git checkout master' on all repositories under development directory:
 
-    gbt checkout master 
-    
+    gbt checkout master
+
 Run 'git log' on all repositories under development directory, limited to the last `n` days, and merge the results:
 
     gbt log n
