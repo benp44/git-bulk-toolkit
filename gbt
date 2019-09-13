@@ -69,6 +69,27 @@ class LogEntry:
         return self._branch_list
 
 
+class ComparisonBranchEntry:
+    def __init__(self, repo, branch_for_comparison, commits_behind, commits_ahead):
+
+        self._repo = repo
+        self._branch_for_comparison = branch_for_comparison
+        self._commits_behind = commits_behind
+        self._commits_ahead = commits_ahead
+
+    def repo(self):
+        return self._repo
+
+    def branch_for_comparison(self):
+        return self._branch_for_comparison
+
+    def commits_behind(self):
+        return self._commits_behind
+
+    def commits_ahead(self):
+        return self._commits_ahead
+
+
 class GitStatusWorker:
     def __init__(self, directory, worker_id, submodule_depth):
 
@@ -77,12 +98,19 @@ class GitStatusWorker:
         self._submodule_depth = submodule_depth
 
         self._work_in_progress = False
+
+        # Fields for status
         self._repo_id = ""
         self._branch = "unknown"
         self._location = "Up to date"
         self._modified_files = []
         self._untracked_files = []
+
+        # Fields for log
         self._log_entries = []
+
+        # Fields for branch comparison
+        self._comparison_branch_entries = []
 
         self._error_pulling = ""
         self._error_checking_out = ""
@@ -96,6 +124,14 @@ class GitStatusWorker:
             self._error_getting_status = ""
             self._work_in_progress = True
             self._thread = Thread(target=self._thread_method_status)
+            self._thread.start()
+
+    def list_branches(self):
+
+        if self._work_in_progress is False:
+            self._error_getting_branches = ""
+            self._work_in_progress = True
+            self._thread = Thread(target=self._thread_method_list_branches)
             self._thread.start()
 
     def fetch(self):
@@ -173,6 +209,10 @@ class GitStatusWorker:
 
         return self._log_entries
 
+    def comparison_branch_entries(self):
+
+        return self._comparison_branch_entries
+
     def work_in_progress(self):
 
         return self._work_in_progress
@@ -221,6 +261,15 @@ class GitStatusWorker:
         output = output.decode("UTF-8")
 
         self._process_status_output(output)
+
+        self._work_in_progress = False
+
+    def _thread_method_list_branches(self):
+
+        output = check_output(["git", "branch", "-r"], cwd=self._directory)
+        output = output.decode("UTF-8")
+
+        self._process_branch_output(output)
 
         self._work_in_progress = False
 
@@ -352,6 +401,38 @@ class GitStatusWorker:
 
                     if "??" in indicator:
                         self._untracked_files.append(filename)
+
+    def _process_branch_output(self, output):
+
+        lines = output.split("\n")
+
+        branches = []
+
+        for line in lines:
+            line = line.strip()
+            if "origin/HEAD" in line:
+                continue
+            indexOfSpace = line.find(" ")
+            if indexOfSpace > 0:
+                line = line[:indexOfSpace]
+
+            branches.append(line)
+
+        branches = set(filter(None, branches))  # Remove any empty entries and make unique
+        branches = list(branches)
+        branches.sort()
+
+        if "origin/master" not in branches:
+            return
+
+        for branch in branches:
+            if branch != "origin/master":
+                output = check_output(["git", "rev-list", "--left-right", "--count", "origin/master..." + branch], cwd=self._directory)
+                output = output.decode("UTF-8")
+                parts = output.split()
+
+                branch_entry = ComparisonBranchEntry(self.short_name(), branch, parts[0], parts[1])
+                self._comparison_branch_entries.append(branch_entry)
 
 
 def get_repositories(parent_directory, git_workers, repo_blacklist, submodule_depth=0):
@@ -500,6 +581,14 @@ def status_all(git_workers):
     display_progress("Getting status")
 
 
+def list_branches_all(git_workers):
+
+    for worker in git_workers:
+        worker.list_branches()
+
+    display_progress("Getting branches")
+
+
 def get_config_file_path():
 
     return str(Path.home()) + "/.config/gbt.conf"
@@ -635,6 +724,74 @@ def print_statuses(git_workers):
     return work_to_do, gbt_has_update
 
 
+def print_branch_comparisons(git_workers):
+
+    horizontal_line()
+
+    repos_branch_pairs = []
+    all_comparison_branches = []
+
+    for worker in git_workers:
+        for branch_entry in worker.comparison_branch_entries():
+            if branch_entry.repo() + branch_entry.branch_for_comparison() not in repos_branch_pairs:
+                all_comparison_branches.append(branch_entry)
+                repos_branch_pairs.append(branch_entry.repo() + branch_entry.branch_for_comparison())
+
+    all_comparison_branches.sort(key=lambda x: x.repo())
+
+    longest_repo = 0
+    longest_branch_for_comparison = 0
+    longest_commits_behind = 0
+    longest_commits_ahead = 0
+
+    for entry in all_comparison_branches:
+        if len(entry.repo()) > longest_repo:
+            longest_repo = len(entry.repo())
+
+        if len(entry.branch_for_comparison()) > longest_branch_for_comparison:
+            longest_branch_for_comparison = len(entry.branch_for_comparison())
+
+        if len(entry.commits_behind()) > longest_commits_behind:
+            longest_commits_behind = len(entry.commits_behind())
+
+        if len(entry.commits_ahead()) > longest_commits_ahead:
+            longest_commits_ahead = len(entry.commits_ahead())
+
+    for entry in all_comparison_branches:
+
+        if entry.commits_ahead() != "0":
+
+            repo_string = entry.repo().ljust(longest_repo)
+            branch_string = entry.branch_for_comparison().ljust(longest_branch_for_comparison)
+            commits_behind_string = entry.commits_behind().ljust(longest_commits_behind)
+            commits_ahead_string = entry.commits_ahead().ljust(longest_commits_ahead)
+
+            output_string = repo_string + OutputFormat.COLUMN_SEPARATOR_FORMATTED + branch_string + OutputFormat.COLUMN_SEPARATOR_FORMATTED
+            if entry.commits_behind() > "0":
+                output_string += TerminalStyle.BLUE
+
+            output_string += commits_behind_string
+
+            if entry.commits_behind() != "0":
+                output_string += TerminalStyle.CLEAR
+
+            output_string += OutputFormat.COLUMN_SEPARATOR_FORMATTED
+
+            if entry.commits_ahead() > "0":
+                output_string += TerminalStyle.YELLOW
+
+            output_string += commits_ahead_string
+
+            if entry.commits_ahead() > "0":
+                output_string += TerminalStyle.CLEAR
+
+            output_string += OutputFormat.COLUMN_SEPARATOR_FORMATTED
+
+            print(output_string)
+
+    horizontal_line()
+
+
 def print_logs(git_workers):
 
     horizontal_line()
@@ -741,6 +898,7 @@ try:
     pull = "pull" in args
     status = "status" in args
     checkout = "checkout" in args
+    branches = "branches" in args
     help = "help" in args or "--help" in args
 
     branch_name = None
@@ -754,12 +912,16 @@ try:
         print("fetch and pull are incompatible")
         exit(1)
 
-    if checkout and (pull or fetch or status or log):
+    if checkout and (pull or fetch or status or log or branches):
         print("checkout is not compatible with other commands")
         exit(1)
 
-    if log and (pull or fetch or status or checkout):
+    if log and (pull or fetch or status or checkout or branches):
         print("log is not compatible with other commands")
+        exit(1)
+
+    if branches and (status or checkout):
+        print("branches is not compatible with status or checkout")
         exit(1)
 
     # Check that there's a branch param for checkout
@@ -779,7 +941,7 @@ try:
 
     # Set the defaults
 
-    if (fetch or pull or status or checkout or log) is False:
+    if (fetch or pull or status or checkout or log or branches) is False:
         fetch = True
         status = True
 
@@ -819,6 +981,10 @@ try:
 
             if gbt_has_update is True:
                 print(TerminalStyle.GREEN + "Update available for gbt" + TerminalStyle.CLEAR)
+
+        elif branches:
+            list_branches_all(git_workers)
+            print_branch_comparisons(git_workers)
 
 except KeyboardInterrupt:
     print("")
