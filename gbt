@@ -425,14 +425,54 @@ class GitStatusWorker:
         if "origin/master" not in branches:
             return
 
-        for branch in branches:
-            if branch != "origin/master":
-                output = check_output(["git", "rev-list", "--left-right", "--count", "origin/master..." + branch], cwd=self._directory)
-                output = output.decode("UTF-8")
-                parts = output.split()
+        most_recent_v_branch = ""
 
-                branch_entry = ComparisonBranchEntry(self.short_name(), branch, parts[0], parts[1])
-                self._comparison_branch_entries.append(branch_entry)
+        for branch_name in branches:
+
+            matched = re.match(".*v[0-9]+\.[0-9]+\.[0-9]+", branch_name)
+
+            if matched:
+                if most_recent_v_branch == "":
+                    most_recent_v_branch = branch_name
+                else:
+                    if self.compare_version_branches(branch_name, most_recent_v_branch):
+                        most_recent_v_branch = branch_name
+
+        if most_recent_v_branch != "":
+
+            output = check_output(["git", "rev-list", "--left-right", "--count", "origin/master..." + most_recent_v_branch], cwd=self._directory)
+            output = output.decode("UTF-8")
+            parts = output.split()
+
+            branch_entry = ComparisonBranchEntry(self.short_name(), most_recent_v_branch, parts[0], parts[1])
+            self._comparison_branch_entries.append(branch_entry)
+
+    def compare_version_branches(self, branch_name_1, branch_name_2):
+
+        matches_in_1 = re.match(".*v([0-9]+)\.([0-9]+)\.([0-9]+)", branch_name_1)
+        matches_in_2 = re.match(".*v([0-9]+)\.([0-9]+)\.([0-9]+)", branch_name_2)
+
+        if len(matches_in_1.groups()) != 3:
+            raise Exception("Unknown branch version number ", branch_name_1)
+        if len(matches_in_2.groups()) != 3:
+            raise Exception("Unknown branch version number ", branch_name_2)
+
+        if int(matches_in_1.groups()[0]) > int(matches_in_2.groups()[0]):
+            return True
+        elif int(matches_in_1.groups()[0]) < int(matches_in_2.groups()[0]):
+            return False
+        elif int(matches_in_1.groups()[0]) == int(matches_in_2.groups()[0]):
+            if int(matches_in_1.groups()[1]) > int(matches_in_2.groups()[1]):
+                return True
+            elif int(matches_in_1.groups()[1]) < int(matches_in_2.groups()[1]):
+                return False
+            elif int(matches_in_1.groups()[1]) == int(matches_in_2.groups()[1]):
+                if int(matches_in_1.groups()[2]) > int(matches_in_2.groups()[2]):
+                    return True
+                elif int(matches_in_1.groups()[2]) < int(matches_in_2.groups()[2]):
+                    return False
+                elif int(matches_in_1.groups()[2]) == int(matches_in_2.groups()[2]):
+                    return False
 
 
 def get_repositories(parent_directory, git_workers, repo_blacklist, submodule_depth=0):
@@ -759,7 +799,7 @@ def print_branch_comparisons(git_workers):
 
     for entry in all_comparison_branches:
 
-        if entry.commits_ahead() != "0":
+        if entry.commits_ahead() != "0" or entry.commits_behind() != "0":
 
             repo_string = entry.repo().ljust(longest_repo)
             branch_string = entry.branch_for_comparison().ljust(longest_branch_for_comparison)
