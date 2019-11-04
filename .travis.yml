@@ -1,0 +1,4 @@
+install:
+  - pip3 install pre-commit
+script:
+  - pre-commit run --all-files
