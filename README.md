@@ -1,5 +1,7 @@
 # Git Bulk Toolkit (gbt)
 
+[![Build Status](https://travis-ci.com/benp44/git-bulk-toolkit.svg?branch=master)](https://travis-ci.com/benp44/git-bulk-toolkit)
+
 A simple tool for managing and viewing the status of multiple local git repositories. Pull requests welcome
 
 Example user stories and features of gbt:
