@@ -15,6 +15,8 @@ Example user stories and features of gbt:
 **As a git user I'd like to see what changes my team has made over multiple repos, over a set time interval**
  * View a combined commit history on all locally cloned repos
 
+**As a git user I'd like to see which branches are ahead or behind origin/master**
+ * View a list of all branches that are either ahead or behind master, and by how much
 
 ### Screenshot
 
@@ -28,6 +30,7 @@ Clone the repo and alias to the script in .bashrc, .zshrc, etc. For example:
     alias gbp='~/Development/git-bulk-toolkit/gbt pull status'
     alias gbc='~/Development/git-bulk-toolkit/gbt checkout'
     alias gbl='~/Development/git-bulk-toolkit/gbt log'
+    alias gbb='~/Development/git-bulk-toolkit/gbt pull branches'
 
 If the git-bulk-toolkit repository is among those in the development directory, then the tool will let you know when it has an update.
 
@@ -57,8 +60,11 @@ Run 'git log' on all repositories under development directory, limited to the la
 
     gbt log n
 
+Show a list of all branches that are ahead or behind origin/master, for all repositories under the development directory:
+
+    gbt branches
+
 ### Todo
 
 * Add user-friendly way to reset development dir
-* Add support for nested repos/submodules
 * Testing... way more testing for edge scenarios - did I mention PR's welcome!?

@@ -767,8 +767,11 @@ def print_branch_comparisons(git_workers):
             commits_ahead_string = entry.commits_ahead().ljust(longest_commits_ahead)
 
             output_string = repo_string + OutputFormat.COLUMN_SEPARATOR_FORMATTED + branch_string + OutputFormat.COLUMN_SEPARATOR_FORMATTED
-            if entry.commits_behind() > "0":
+            if entry.commits_behind() != "0":
                 output_string += TerminalStyle.BLUE
+                output_string += "-"
+            else:
+                output_string += " "
 
             output_string += commits_behind_string
 
@@ -777,12 +780,15 @@ def print_branch_comparisons(git_workers):
 
             output_string += OutputFormat.COLUMN_SEPARATOR_FORMATTED
 
-            if entry.commits_ahead() > "0":
+            if entry.commits_ahead() != "0":
                 output_string += TerminalStyle.YELLOW
+                output_string += "+"
+            else:
+                output_string += " "
 
             output_string += commits_ahead_string
 
-            if entry.commits_ahead() > "0":
+            if entry.commits_ahead() != "0":
                 output_string += TerminalStyle.CLEAR
 
             output_string += OutputFormat.COLUMN_SEPARATOR_FORMATTED
