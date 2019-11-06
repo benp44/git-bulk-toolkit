@@ -2,7 +2,6 @@
 
 # Git bulk toolkit
 
-from argparse import ArgumentParser
 from pathlib import Path
 from subprocess import Popen, PIPE, check_output
 from threading import Thread
