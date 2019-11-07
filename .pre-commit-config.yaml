@@ -9,6 +9,7 @@ repos:
     - id: check-yaml
     - id: check-added-large-files
     - id: check-symlinks
+    - id: flake8
 
 -   repo: https://github.com/jumanjihouse/pre-commit-hooks
     rev: 1.11.0
@@ -25,4 +26,4 @@ repos:
     rev: v1.4.4
     hooks:
     -   id: autopep8
-        args: ["-i", "--ignore=E226,E24,W50,W690,E402", "--max-line-length", "1000"]
+        args: ["--max-line-length", "120"]
