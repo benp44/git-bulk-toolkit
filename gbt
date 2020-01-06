@@ -597,11 +597,11 @@ def get_development_dir():
 
     development_dir = get_config_value(ConfigValue.DEVELOPMENT_DIR)
 
-    if development_dir is "":
+    if development_dir == "":
         show_help()
 
-    while development_dir is "":
-        if development_dir is "":
+    while development_dir == "":
+        if development_dir == "":
             provided_directory = input("Development directory not set.\nProvide the directory under which your git repositories reside: [" + os.getcwd() + "]:")
             if provided_directory == "":
                 development_dir = os.getcwd()
