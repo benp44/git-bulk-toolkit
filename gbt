@@ -3,9 +3,10 @@
 # Git bulk toolkit
 
 from pathlib import Path
-from subprocess import Popen, PIPE, check_output
+from subprocess import DEVNULL, Popen, PIPE, check_output
 from threading import Thread
 from time import sleep
+from random import random
 import configparser
 import os
 import re
@@ -18,7 +19,7 @@ import math
 class ConfigValue:
 
     DEVELOPMENT_DIR = "development_directory"
-    REPO_BLACKLIST = "repo_blacklist"
+    REPO_BLOCKLIST = "repo_blocklist"
 
 
 class TerminalStyle:
@@ -101,7 +102,9 @@ class GitStatusWorker:
         # Fields for status
         self._repo_id = ""
         self._branch = "unknown"
-        self._location = "Up to date"
+        self._default_branch = "unknown"
+        self._commits_behind = 0
+        self._commits_ahead = 0
         self._modified_files = []
         self._untracked_files = []
 
@@ -188,13 +191,28 @@ class GitStatusWorker:
 
         return self._branch
 
+    def default_branch(self):
+
+        return self._default_branch
+
     def is_gbt_repo(self):
 
         return self._repo_id == "a5eab786a76c18fb765ae60742f970da2f5408fc"
 
-    def location(self):
+    def relative_commits(self):
 
-        return self._location[0].upper() + self._location[1:]
+        commits_behind = f"⇣{self._commits_behind}" if self._commits_behind > 0 else ""
+        commits_ahead = f"⇡{self._commits_ahead}" if self._commits_ahead > 0 else ""
+
+        return f"{commits_behind}{commits_ahead}"
+
+    def commits_behind(self):
+
+        return self._commits_behind
+
+    def commits_ahead(self):
+
+        return self._commits_ahead
 
     def modified_files(self):
 
@@ -244,17 +262,28 @@ class GitStatusWorker:
 
         self._thread.join()
 
+    def _get_default_branch(self):
+
+        output = check_output(["git", "symbolic-ref", "refs/remotes/origin/HEAD"], cwd=self._directory)
+        output = output.decode("UTF-8")
+        self._default_branch = output.replace("refs/remotes/", "").replace("\n", "")
+
+    def _get_repo_id(self):
+
+        try:
+            output = check_output(["git", "rev-list", "HEAD"], cwd=self._directory, stderr=DEVNULL)
+            output = output.decode("UTF-8")
+            self._repo_id = output.split("\n")[-2]
+        except:
+            pass
+
     def _thread_method_status(self):
 
         self._modified_files.clear()
         self._untracked_files.clear()
 
-        try:
-            output = check_output(["git", "rev-list", "HEAD"], cwd=self._directory, stderr=FNULL)
-            output = output.decode("UTF-8")
-            self._repo_id = output.split("\n")[-2]
-        except:
-            pass
+        self._get_default_branch()
+        self._get_repo_id()
 
         output = check_output(["git", "status", "-sb"], cwd=self._directory)
         output = output.decode("UTF-8")
@@ -264,6 +293,8 @@ class GitStatusWorker:
         self._work_in_progress = False
 
     def _thread_method_list_branches(self):
+
+        self._get_default_branch()
 
         output = check_output(["git", "branch", "-r"], cwd=self._directory)
         output = output.decode("UTF-8")
@@ -341,6 +372,7 @@ class GitStatusWorker:
     def _thread_method_fetch(self):
 
         if self.is_submodule() == False:
+            random_delay()
             process = Popen(["git", "fetch"], stdout=PIPE, stderr=PIPE, cwd=self._directory)
             results = process.communicate()
             if process.returncode != 0:
@@ -361,6 +393,7 @@ class GitStatusWorker:
     def _thread_method_pull(self):
 
         if self.is_submodule() == False:
+            random_delay()
             process = Popen(["git", "pull", "--recurse-submodules"], stdout=PIPE, stderr=PIPE, cwd=self._directory)
             results = process.communicate()
             if process.returncode != 0:
@@ -380,13 +413,16 @@ class GitStatusWorker:
                 else:
                     self._branch = line
 
-                result = re.search("\[(.*)\]", line)
+                result = re.search("\[.*behind (\d+).*\]", line)
                 if result:
-                    self._location = result.group(1)
+                    self._commits_behind = int(result.group(1))
+
+                result = re.search("\[.*ahead (\d+).*\]", line)
+                if result:
+                    self._commits_ahead = int(result.group(1))
 
                 if "No commits yet on" in self._branch:
                     self._branch = self._branch.split()[-1]
-                    self._location = "Empty"
 
             else:
                 parts = line.split()
@@ -421,12 +457,12 @@ class GitStatusWorker:
         branches = list(branches)
         branches.sort()
 
-        if "origin/master" not in branches:
+        if self.default_branch() not in branches:
             return
 
         for branch in branches:
-            if branch != "origin/master":
-                output = check_output(["git", "rev-list", "--left-right", "--count", "origin/master..." + branch], cwd=self._directory)
+            if branch != self.default_branch():
+                output = check_output(["git", "rev-list", "--left-right", "--count", f"{self.default_branch()}...{branch}"], cwd=self._directory)
                 output = output.decode("UTF-8")
                 parts = output.split()
 
@@ -434,20 +470,20 @@ class GitStatusWorker:
                 self._comparison_branch_entries.append(branch_entry)
 
 
-def get_repositories(parent_directory, git_workers, repo_blacklist, submodule_depth=0):
+def get_repositories(parent_directory, git_workers, repo_blocklist, submodule_depth=0):
 
     for path in os.listdir(parent_directory):
         abs_path = os.path.join(parent_directory, path)
         git_config_path = os.path.join(abs_path, ".git")
 
         if submodule_depth > 0:
-            if os.path.isfile(git_config_path) and path not in repo_blacklist:
+            if os.path.isfile(git_config_path) and path not in repo_blocklist:
                 git_workers.append(GitStatusWorker(abs_path, len(git_workers), submodule_depth))
-                get_repositories(abs_path, git_workers, repo_blacklist, submodule_depth + 1)
+                get_repositories(abs_path, git_workers, repo_blocklist, submodule_depth + 1)
         elif os.path.isdir(git_config_path):
-            if path not in repo_blacklist:
+            if path not in repo_blocklist:
                 git_workers.append(GitStatusWorker(abs_path, len(git_workers), submodule_depth))
-                get_repositories(abs_path, git_workers, repo_blacklist, submodule_depth + 1)
+                get_repositories(abs_path, git_workers, repo_blocklist, submodule_depth + 1)
 
 
 def upgrade_existing_config():
@@ -503,6 +539,7 @@ def set_config_value(name, value):
 
 
 def get_progress_bar_string(progress):
+
     progress_bar_width = 30
     bar_characters = [" ", "▏", "▎", "▍", "▌", "▋", "▊", "▉"]
 
@@ -622,7 +659,7 @@ def print_statuses(git_workers):
 
     longest_subdirectory_name = 0
     longest_branch_name = 0
-    longest_location = 0
+    longest_relative_commits = 0
 
     for worker in git_workers:
         if len(worker.display_name()) > longest_subdirectory_name:
@@ -631,31 +668,30 @@ def print_statuses(git_workers):
         if len(worker.branch()) > longest_branch_name:
             longest_branch_name = len(worker.branch())
 
-        if len(worker.location()) > longest_location:
-            longest_location = len(worker.location())
+        if len(worker.relative_commits()) > longest_relative_commits:
+            longest_relative_commits = len(worker.relative_commits())
 
-    output_lines = []
     work_to_do = False
     gbt_has_update = False
 
     for worker in git_workers:
 
         if worker.error_occurred():
-            status_string = TerminalStyle.RED + worker.display_name().ljust(longest_subdirectory_name + longest_branch_name + longest_location + 10)
+            status_string = TerminalStyle.RED + worker.display_name().ljust(longest_subdirectory_name + longest_branch_name + longest_relative_commits + 10)
             status_string += "Error "
 
             term_columns, _ = shutil.get_terminal_size((80, 20))
 
             if worker.error_fetching() != "":
-                error = "fetching: " + worker.error_fetching().replace("\n", " ")
+                error = "fetching: " + worker.error_fetching().replace("\r\n", " ").replace("\n", " ")
                 status_string += error[:term_columns - len(status_string)]
 
             if worker.error_pulling() != "":
-                error = "pulling: " + worker.error_pulling().replace("\n", " ")
+                error = "pulling: " + worker.error_pulling().replace("\r\n", " ").replace("\n", " ")
                 status_string += error[:term_columns - len(status_string)]
 
             if worker.error_checking_out() != "":
-                error = "checking out branch: " + worker.error_checking_out().replace("\n", " ")
+                error = "checking out branch: " + worker.error_checking_out().replace("\r\n", " ").replace("\n", " ")
                 status_string += error[:term_columns - len(status_string)]
 
             status_string += TerminalStyle.CLEAR
@@ -667,32 +703,30 @@ def print_statuses(git_workers):
             name_string += worker.display_name().ljust(longest_subdirectory_name)
             name_string += TerminalStyle.CLEAR if worker.is_submodule() else ""
 
-            location_string = ""
+            relative_commits_string = ""
 
-            if "behind" in worker.location().lower():
+            if worker.commits_behind() > 0:
 
                 gbt_has_update = worker.is_gbt_repo()
 
-                if len(worker.modified_files()) + len(worker.untracked_files()) > 0:
-                    location_string += TerminalStyle.RED
-                else:
-                    location_string += TerminalStyle.YELLOW
-
-                location_string += worker.location().rjust(longest_location)
+                relative_commits_string += TerminalStyle.YELLOW
+                relative_commits_string += worker.relative_commits().rjust(longest_relative_commits)
                 work_to_do = True
 
-            elif "ahead" in worker.location().lower():
-                location_string += TerminalStyle.GREEN + worker.location().rjust(longest_location)
+            elif worker.commits_ahead() > 0:
+
+                relative_commits_string += TerminalStyle.GREEN + worker.relative_commits().rjust(longest_relative_commits)
                 work_to_do = True
 
             else:
-                location_string += worker.location().rjust(longest_location)
 
-            location_string += TerminalStyle.CLEAR
+                relative_commits_string += worker.relative_commits().rjust(longest_relative_commits)
+
+            relative_commits_string += TerminalStyle.CLEAR
 
             branch_string = worker.branch().ljust(longest_branch_name)
 
-            if worker.branch() != "master" and worker.branch() != "HEAD (no branch)":
+            if worker.branch() != worker.default_branch() and worker.branch() != "HEAD (no branch)":
                 branch_string = TerminalStyle.BLUE + worker.branch().ljust(longest_branch_name) + TerminalStyle.CLEAR
 
             status_string = ""
@@ -709,7 +743,7 @@ def print_statuses(git_workers):
             print(
                 name_string
                 + OutputFormat.COLUMN_SEPARATOR_FORMATTED
-                + location_string
+                + relative_commits_string
                 + TerminalStyle.DIM
                 + " on "
                 + TerminalStyle.CLEAR
@@ -854,17 +888,20 @@ def horizontal_line():
 
 def create_workers():
 
-    repo_blacklist = get_config_value(ConfigValue.REPO_BLACKLIST)
-    repo_blacklist = repo_blacklist.split(",")
+    repo_blocklist = get_config_value(ConfigValue.REPO_BLOCKLIST)
+    repo_blocklist = repo_blocklist.split(",")
 
     git_workers = []
 
-    get_repositories(development_dir, git_workers, repo_blacklist)
+    get_repositories(development_dir, git_workers, repo_blocklist)
 
     git_workers.sort(key=lambda x: x.directory())
 
     return git_workers
 
+def random_delay():
+
+    sleep(random() * 10)
 
 def show_help():
     print(TerminalStyle.YELLOW + "Git Bulk Toolkit (gbt) by Ben Pring" + TerminalStyle.CLEAR)
